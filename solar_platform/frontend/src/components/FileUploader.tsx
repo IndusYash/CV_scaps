@@ -114,7 +114,7 @@ export const FileUploader: React.FC<Props> = ({ onUploadSuccess }) => {
                 </div>
 
                 <h1 className="text-hero-title" style={{ marginBottom: '1.25rem' }}>
-                  Photovoltaic Analytics Platform
+                  SCAPS ML Pipeline
                 </h1>
 
                 <p className="text-body" style={{ fontSize: '1.125rem', marginBottom: '2.25rem', maxWidth: '620px', lineHeight: 1.6 }}>
