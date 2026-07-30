@@ -1,5 +1,4 @@
 import React from 'react';
-import { Landmark } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
@@ -25,7 +24,7 @@ export const Footer: React.FC = () => {
             </div>
             <p style={{ fontSize: '0.88rem', color: 'var(--color-secondary)', lineHeight: 1.6 }}>
               Built for <strong>Photonics Research Laboratory</strong><br />
-              Department of CSE, MMMUT
+              Department of Physics and Material Science, MMMUT
             </p>
           </div>
 
