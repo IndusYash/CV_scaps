@@ -1,0 +1,10 @@
+{
+  "buildCommand": "cd solar_platform/frontend && npm install && npm run build",
+  "outputDirectory": "solar_platform/frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
