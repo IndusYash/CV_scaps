@@ -6,41 +6,46 @@ import pandas as pd
 from app.services.parser import clean_dataframe
 
 
+def extract_numeric_value(col_name: str) -> float | None:
+    """Extracts any float, integer, or scientific notation number from a column header string."""
+    # Match integers, floats, and scientific notation (e.g. 100, 100.5, 1e14, 10^14)
+    if "10^" in col_name:
+        match_exp = re.search(r"10\^(\d+)", col_name)
+        if match_exp:
+            return float(10 ** float(match_exp.group(1)))
+
+    match = re.search(r"([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)", col_name)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+    return None
+
+
 def preprocess_parametric_sheet(
     df: pd.DataFrame,
     sheet_name: str,
 ) -> Dict[str, pd.DataFrame]:
     """Preprocesses a parametric sweep sheet (e.g. PVK, HTL, ETL, Temp, Defect, Donor, Interface).
 
-    Returns a dict with key long DataFrames: 'jv', 'qe', 'responsivity'.
+    Returns a dict with long DataFrames: 'jv', 'qe', 'responsivity'.
     """
     df = clean_dataframe(df)
     columns = [str(c) for c in df.columns]
 
-    # Detect parameter prefix rule (t=, T=, 10^)
-    prefix = ""
-    extract_regex = r"(\d+(?:\.\d+)?)"
-
-    if any(c.startswith("t=") for c in columns):
-        prefix = "t="
-        extract_regex = r"t=(\d+)"
-    elif any(c.startswith("T=") for c in columns):
-        prefix = "T="
-        extract_regex = r"T=(\d+)"
-    elif any(c.startswith("10^") for c in columns):
-        prefix = "10^"
-        extract_regex = r"10\^(\d+)"
-
+    # Parameter name determination
     param_col_name = "Parameter"
-    if "thickness" in sheet_name.lower() or sheet_name in ["PVK", "ETL", "HTL"]:
+    s_lower = sheet_name.lower()
+    if "thickness" in s_lower or sheet_name in ["PVK", "ETL", "HTL"]:
         param_col_name = "Thickness"
-    elif "temp" in sheet_name.lower():
+    elif "temp" in s_lower:
         param_col_name = "Temperature"
-    elif "defect" in sheet_name.lower():
+    elif "defect" in s_lower:
         param_col_name = "Defect_Density"
-    elif "donor" in sheet_name.lower():
+    elif "donor" in s_lower:
         param_col_name = "Donor_Concentration"
-    elif "interface" in sheet_name.lower():
+    elif "interface" in s_lower:
         param_col_name = "Interface_Density"
 
     result = {}
@@ -50,48 +55,60 @@ def preprocess_parametric_sheet(
     if jv_x_col and jv_x_col in columns:
         jv_cols = [jv_x_col] + [
             c for c in columns
-            if (c.startswith(prefix) or prefix == "") and ".1" not in c and ".2" not in c and c != jv_x_col
+            if ".1" not in c and ".2" not in c and c != jv_x_col
         ]
         if len(jv_cols) > 1:
             jv_df = df[jv_cols].copy()
             jv_long = jv_df.melt(id_vars=jv_x_col, var_name=param_col_name, value_name="Current")
-            jv_long[param_col_name] = jv_long[param_col_name].astype(str).str.extract(extract_regex).astype(float)
-            jv_long = jv_long.dropna().rename(columns={jv_x_col: "Voltage"}).reset_index(drop=True)
-            jv_long["Voltage"] = pd.to_numeric(jv_long["Voltage"])
-            jv_long["Current"] = pd.to_numeric(jv_long["Current"])
-            result["jv"] = jv_long
+            
+            # Safe extraction of numerical parameter values
+            jv_long[param_col_name] = jv_long[param_col_name].astype(str).apply(extract_numeric_value)
+            jv_long = jv_long.dropna(subset=[param_col_name, jv_x_col, "Current"]).rename(columns={jv_x_col: "Voltage"}).reset_index(drop=True)
+            jv_long["Voltage"] = pd.to_numeric(jv_long["Voltage"], errors="coerce")
+            jv_long["Current"] = pd.to_numeric(jv_long["Current"], errors="coerce")
+            jv_long["Thickness"] = pd.to_numeric(jv_long[param_col_name], errors="coerce") if param_col_name == "Thickness" else pd.to_numeric(jv_long[param_col_name], errors="coerce")
+            jv_long = jv_long.dropna().reset_index(drop=True)
+            
+            if not jv_long.empty:
+                result["jv"] = jv_long
 
     # 2. QE Data Processing
     qe_x_col = next((c for c in columns if "lambda" in c.lower() or "wavelength" in c.lower()), None)
     if qe_x_col and qe_x_col in columns:
         qe_cols = [qe_x_col] + [
             c for c in columns
-            if (c.startswith(prefix) or prefix == "") and ".1" in c and c != qe_x_col
+            if ".1" in c and c != qe_x_col
         ]
         if len(qe_cols) > 1:
             qe_df = df[qe_cols].copy()
             qe_long = qe_df.melt(id_vars=qe_x_col, var_name=param_col_name, value_name="QE")
-            qe_long[param_col_name] = qe_long[param_col_name].astype(str).str.extract(extract_regex).astype(float)
-            qe_long = qe_long.dropna().rename(columns={qe_x_col: "Wavelength"}).reset_index(drop=True)
-            qe_long["Wavelength"] = pd.to_numeric(qe_long["Wavelength"])
-            qe_long["QE"] = pd.to_numeric(qe_long["QE"])
-            result["qe"] = qe_long
+            qe_long[param_col_name] = qe_long[param_col_name].astype(str).apply(extract_numeric_value)
+            qe_long = qe_long.dropna(subset=[param_col_name, qe_x_col, "QE"]).rename(columns={qe_x_col: "Wavelength"}).reset_index(drop=True)
+            qe_long["Wavelength"] = pd.to_numeric(qe_long["Wavelength"], errors="coerce")
+            qe_long["QE"] = pd.to_numeric(qe_long["QE"], errors="coerce")
+            qe_long = qe_long.dropna().reset_index(drop=True)
+
+            if not qe_long.empty:
+                result["qe"] = qe_long
 
     # 3. Responsivity Data Processing
     r_x_col = next((c for c in columns if ".1" in c and ("lambda" in c.lower() or "wavelength" in c.lower())), None)
     if r_x_col and r_x_col in columns:
         r_cols = [r_x_col] + [
             c for c in columns
-            if (c.startswith(prefix) or prefix == "") and ".2" in c and c != r_x_col
+            if ".2" in c and c != r_x_col
         ]
         if len(r_cols) > 1:
             r_df = df[r_cols].copy()
             r_long = r_df.melt(id_vars=r_x_col, var_name=param_col_name, value_name="Responsivity")
-            r_long[param_col_name] = r_long[param_col_name].astype(str).str.extract(extract_regex).astype(float)
-            r_long = r_long.dropna().rename(columns={r_x_col: "Wavelength"}).reset_index(drop=True)
-            r_long["Wavelength"] = pd.to_numeric(r_long["Wavelength"])
-            r_long["Responsivity"] = pd.to_numeric(r_long["Responsivity"])
-            result["responsivity"] = r_long
+            r_long[param_col_name] = r_long[param_col_name].astype(str).apply(extract_numeric_value)
+            r_long = r_long.dropna(subset=[param_col_name, r_x_col, "Responsivity"]).rename(columns={r_x_col: "Wavelength"}).reset_index(drop=True)
+            r_long["Wavelength"] = pd.to_numeric(r_long["Wavelength"], errors="coerce")
+            r_long["Responsivity"] = pd.to_numeric(r_long["Responsivity"], errors="coerce")
+            r_long = r_long.dropna().reset_index(drop=True)
+
+            if not r_long.empty:
+                result["responsivity"] = r_long
 
     return result
 
@@ -112,9 +129,11 @@ def preprocess_single_curve_sheet(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     if v_col and j_col:
         jv_df = df[[v_col, j_col]].copy().dropna()
         jv_df.columns = ["Voltage", "Current"]
-        jv_df["Voltage"] = pd.to_numeric(jv_df["Voltage"])
-        jv_df["Current"] = pd.to_numeric(jv_df["Current"])
-        result["jv"] = jv_df
+        jv_df["Voltage"] = pd.to_numeric(jv_df["Voltage"], errors="coerce")
+        jv_df["Current"] = pd.to_numeric(jv_df["Current"], errors="coerce")
+        jv_df = jv_df.dropna().reset_index(drop=True)
+        if not jv_df.empty:
+            result["jv"] = jv_df
 
     # QE
     l_col = next((c for c in columns if "lambda" in c.lower() and ".1" not in c), None)
@@ -122,9 +141,11 @@ def preprocess_single_curve_sheet(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     if l_col and qe_col:
         qe_df = df[[l_col, qe_col]].copy().dropna()
         qe_df.columns = ["Wavelength", "QE"]
-        qe_df["Wavelength"] = pd.to_numeric(qe_df["Wavelength"])
-        qe_df["QE"] = pd.to_numeric(qe_df["QE"])
-        result["qe"] = qe_df
+        qe_df["Wavelength"] = pd.to_numeric(qe_df["Wavelength"], errors="coerce")
+        qe_df["QE"] = pd.to_numeric(qe_df["QE"], errors="coerce")
+        qe_df = qe_df.dropna().reset_index(drop=True)
+        if not qe_df.empty:
+            result["qe"] = qe_df
 
     # Responsivity
     l_col_r = next((c for c in columns if "lambda" in c.lower() and ".1" in c), None)
@@ -132,9 +153,11 @@ def preprocess_single_curve_sheet(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     if l_col_r and r_col:
         r_df = df[[l_col_r, r_col]].copy().dropna()
         r_df.columns = ["Wavelength", "Responsivity"]
-        r_df["Wavelength"] = pd.to_numeric(r_df["Wavelength"])
-        r_df["Responsivity"] = pd.to_numeric(r_df["Responsivity"])
-        result["responsivity"] = r_df
+        r_df["Wavelength"] = pd.to_numeric(r_df["Wavelength"], errors="coerce")
+        r_df["Responsivity"] = pd.to_numeric(r_df["Responsivity"], errors="coerce")
+        r_df = r_df.dropna().reset_index(drop=True)
+        if not r_df.empty:
+            result["responsivity"] = r_df
 
     # Detectivity (D*)
     vd_col = next((c for c in columns if "v(" in c.lower() and c != v_col), v_col)
@@ -142,8 +165,10 @@ def preprocess_single_curve_sheet(df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     if vd_col and d_col:
         d_df = df[[vd_col, d_col]].copy().dropna()
         d_df.columns = ["Voltage", "Detectivity"]
-        d_df["Voltage"] = pd.to_numeric(d_df["Voltage"])
-        d_df["Detectivity"] = pd.to_numeric(d_df["Detectivity"])
-        result["detectivity"] = d_df
+        d_df["Voltage"] = pd.to_numeric(d_df["Voltage"], errors="coerce")
+        d_df["Detectivity"] = pd.to_numeric(d_df["Detectivity"], errors="coerce")
+        d_df = d_df.dropna().reset_index(drop=True)
+        if not d_df.empty:
+            result["detectivity"] = d_df
 
     return result

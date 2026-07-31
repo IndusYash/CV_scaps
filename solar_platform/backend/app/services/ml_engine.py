@@ -65,7 +65,7 @@ def train_sheet_models(
     metrics: Dict[str, MetricPair] = {}
 
     for curve_type, df in processed_data.items():
-        if df.empty:
+        if df.empty or len(df) < 5:
             continue
 
         if is_single_curve:
@@ -75,13 +75,22 @@ def train_sheet_models(
                 feature_cols = ["Wavelength"]
             target_col = df.columns[1]
         else:
-            param_col = [c for c in df.columns if c not in ["Voltage", "Wavelength", "Current", "QE", "Responsivity"]][0]
+            param_cols = [c for c in df.columns if c not in ["Voltage", "Wavelength", "Current", "QE", "Responsivity"]]
+            if not param_cols:
+                continue
+            param_col = param_cols[0]
             x_col = "Voltage" if "Voltage" in df.columns else "Wavelength"
             feature_cols = [x_col, param_col]
-            target_col = [c for c in df.columns if c not in feature_cols][0]
+            target_cols = [c for c in df.columns if c not in feature_cols]
+            if not target_cols:
+                continue
+            target_col = target_cols[0]
 
         X = df[feature_cols]
         y = df[target_col]
+
+        if len(X) < 5:
+            continue
 
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=random_state
@@ -152,10 +161,13 @@ def predict_curve_comparison(
     df_proc = session.processed_data[curve_type]
     param_col = session.param_col
     x_col = "Voltage" if "Voltage" in df_proc.columns else "Wavelength"
-    target_col = [c for c in df_proc.columns if c not in [x_col, param_col]][0]
+    target_cols = [c for c in df_proc.columns if c not in [x_col, param_col]]
+    if not target_cols:
+        raise ValueError("Target curve column not found in preprocessed data.")
+    target_col = target_cols[0]
 
     actual_df = df_proc[df_proc[param_col] == param_val].sort_values(x_col)
-    if actual_df.empty:
+    if actual_df.empty and session.param_values:
         # Fallback to closest parameter value if exact match not found
         closest_val = min(session.param_values, key=lambda v: abs(v - param_val))
         actual_df = df_proc[df_proc[param_col] == closest_val].sort_values(x_col)
