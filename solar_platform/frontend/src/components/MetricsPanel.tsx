@@ -13,7 +13,18 @@ export const MetricsPanel: React.FC<Props> = ({ metrics }) => {
     jv: 'J-V Characteristic Curve',
     qe: 'Quantum Efficiency (QE)',
     responsivity: 'Spectral Responsivity',
-    detectivity: 'Detectivity (D*)'
+    detectivity: 'Detectivity (D*)',
+    absorption: 'Optical Absorption'
+  };
+
+  const formatMetricKey = (key: string) => {
+    const kLower = key.toLowerCase();
+    if (curveLabels[kLower]) return curveLabels[kLower];
+    if (key.startsWith('block_')) {
+      const parts = key.split('_');
+      return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+    return key.toUpperCase();
   };
 
   const getR2Class = (r2: number) => {
@@ -47,7 +58,7 @@ export const MetricsPanel: React.FC<Props> = ({ metrics }) => {
             <div key={key} className="glass-card" style={{ padding: '1.4rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
                 <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                  {curveLabels[key] || key.toUpperCase()}
+                  {formatMetricKey(key)}
                 </span>
                 {getR2Icon(pair.r2)}
               </div>

@@ -22,7 +22,7 @@ export const WorkbookSummary: React.FC<Props> = ({
   const totalSheets = sheets.length;
   const trainedCount = trainedSheetNames.length;
 
-  // Compute average R2 across all trained sheets
+  // Compute average R2 across all trained sheets dynamically
   let totalR2 = 0;
   let highestR2 = -1;
   let highestSheet = '';
@@ -30,13 +30,15 @@ export const WorkbookSummary: React.FC<Props> = ({
   trainedSheetNames.forEach(sName => {
     const res = trainingResults[sName];
     if (res && res.metrics) {
-      const jvR2 = res.metrics.jv?.r2 || 0;
-      const qeR2 = res.metrics.qe?.r2 || 0;
-      const avgSheetR2 = (jvR2 + qeR2) / (jvR2 && qeR2 ? 2 : 1);
-      totalR2 += avgSheetR2;
-      if (avgSheetR2 > highestR2) {
-        highestR2 = avgSheetR2;
-        highestSheet = sName;
+      const metricValues = Object.values(res.metrics);
+      if (metricValues.length > 0) {
+        const sumR2 = metricValues.reduce((acc, m) => acc + (m.r2 || 0), 0);
+        const avgSheetR2 = sumR2 / metricValues.length;
+        totalR2 += avgSheetR2;
+        if (avgSheetR2 > highestR2) {
+          highestR2 = avgSheetR2;
+          highestSheet = sName;
+        }
       }
     }
   });
@@ -122,8 +124,8 @@ export const WorkbookSummary: React.FC<Props> = ({
                 <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Worksheet</th>
                 <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Swept Parameter</th>
                 <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Curve Types</th>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>J-V R² Score</th>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>QE R² Score</th>
+                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Primary R² Score</th>
+                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Overall R² Score</th>
                 <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Status</th>
                 <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700, textAlign: 'right' }}>Action</th>
               </tr>
@@ -132,8 +134,10 @@ export const WorkbookSummary: React.FC<Props> = ({
               {sheets.map(s => {
                 const isTrained = !!trainingResults[s.sheet_name];
                 const res = trainingResults[s.sheet_name];
-                const jvR2 = res?.metrics?.jv?.r2;
-                const qeR2 = res?.metrics?.qe?.r2;
+                const metrics = res?.metrics || {};
+                const firstR2 = Object.values(metrics)[0]?.r2;
+                const allR2s = Object.values(metrics).map(m => m.r2);
+                const avgR2Val = allR2s.length > 0 ? (allR2s.reduce((a, b) => a + b, 0) / allR2s.length) : undefined;
 
                 return (
                   <tr key={s.sheet_name} style={{ borderBottom: '1px solid var(--color-border)', transition: 'background-color 150ms ease' }}>
@@ -152,11 +156,11 @@ export const WorkbookSummary: React.FC<Props> = ({
                         ))}
                       </div>
                     </td>
-                    <td style={{ padding: '1rem', fontWeight: 700, color: jvR2 && jvR2 > 0.95 ? 'var(--color-success)' : 'var(--color-primary)' }}>
-                      {jvR2 !== undefined ? jvR2.toFixed(4) : '—'}
+                    <td style={{ padding: '1rem', fontWeight: 700, color: firstR2 && firstR2 > 0.95 ? 'var(--color-success)' : 'var(--color-primary)' }}>
+                      {firstR2 !== undefined ? firstR2.toFixed(4) : '—'}
                     </td>
-                    <td style={{ padding: '1rem', fontWeight: 700, color: qeR2 && qeR2 > 0.95 ? 'var(--color-success)' : 'var(--color-primary)' }}>
-                      {qeR2 !== undefined ? qeR2.toFixed(4) : '—'}
+                    <td style={{ padding: '1rem', fontWeight: 700, color: avgR2Val && avgR2Val > 0.95 ? 'var(--color-success)' : 'var(--color-primary)' }}>
+                      {avgR2Val !== undefined ? avgR2Val.toFixed(4) : '—'}
                     </td>
                     <td style={{ padding: '1rem' }}>
                       {isTrained ? (

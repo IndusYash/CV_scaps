@@ -36,7 +36,18 @@ export const PointPredictor: React.FC<Props> = ({
     }
   };
 
-  const xRange = xRanges[curveType] || { min: 0, max: 1 };
+  const formatCurveLabel = (c: string) => {
+    if (c.startsWith('block_')) {
+      const parts = c.split('_');
+      return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+    return c.toUpperCase();
+  };
+
+  const isWavelength = curveType.toLowerCase().includes('qe') || curveType.toLowerCase().includes('responsivity') || curveType.toLowerCase().includes('absorption');
+  const xLabel = isWavelength ? 'Wavelength (nm)' : 'Voltage (V)';
+
+  const xRange = xRanges[curveType] || Object.values(xRanges)[0] || { min: 0, max: 1 };
   const isSingleCurve = parameterValues.length === 0;
 
   return (
@@ -65,14 +76,14 @@ export const PointPredictor: React.FC<Props> = ({
             }}
           >
             {availableCurves.map(c => (
-              <option key={c} value={c}>{c.toUpperCase()}</option>
+              <option key={c} value={c}>{formatCurveLabel(c)}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-secondary)', marginBottom: '0.4rem', fontWeight: 600 }}>
-            {curveType === 'jv' || curveType === 'detectivity' ? 'Voltage (V)' : 'Wavelength (nm)'}
+            {xLabel}
           </label>
           <input
             type="number"
@@ -99,8 +110,7 @@ export const PointPredictor: React.FC<Props> = ({
             <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-secondary)', marginBottom: '0.4rem', fontWeight: 600 }}>
               {parameterName} Input
             </label>
-            <input
-              type="number"
+            <select
               value={paramVal}
               onChange={(e) => setParamVal(e.target.value)}
               style={{
@@ -110,40 +120,34 @@ export const PointPredictor: React.FC<Props> = ({
                 border: '1px solid #CBD5E1',
                 backgroundColor: '#FFFFFF',
                 color: '#0F172A',
-                fontWeight: 600,
+                fontWeight: 500,
                 fontSize: '0.9rem'
               }}
-            />
+            >
+              {parameterValues.map(v => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
           </div>
         )}
-
-        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <button
-            className="btn-primary"
-            onClick={handlePredict}
-            disabled={loading}
-            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.7rem 1.2rem' }}
-          >
-            <span>{loading ? 'Calculating...' : 'Predict Output'}</span>
-          </button>
-        </div>
       </div>
 
-      {prediction !== null && (
-        <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: '0.82rem', color: 'var(--color-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Computed {curveType.toUpperCase()} Target Value
-            </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--color-primary)', fontFamily: 'monospace' }}>
-              {prediction.toFixed(6)}
-            </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <button
+          className="btn-primary"
+          onClick={handlePredict}
+          disabled={loading}
+          style={{ padding: '0.7rem 1.4rem' }}
+        >
+          {loading ? 'Evaluating Model...' : 'Calculate Prediction'}
+        </button>
+
+        {prediction !== null && (
+          <div style={{ padding: '0.6rem 1.2rem', borderRadius: '8px', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', fontSize: '0.95rem' }}>
+            Predicted Output Value: <strong style={{ color: 'var(--color-accent)', fontSize: '1.1rem' }}>{prediction.toFixed(4)}</strong>
           </div>
-          <span style={{ fontSize: '0.82rem', color: 'var(--color-success)', fontWeight: 700, backgroundColor: '#F0FDF4', padding: '0.3rem 0.7rem', borderRadius: '6px', border: '1px solid #BBF7D0' }}>
-            Model Precision Verified ✓
-          </span>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

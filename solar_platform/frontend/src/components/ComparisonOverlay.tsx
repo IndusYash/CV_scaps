@@ -39,7 +39,16 @@ export const ComparisonOverlay: React.FC<Props> = ({
     }
   }, [curveType, paramVal, fileId, sheetName]);
 
-  const xLabel = curveType === 'jv' || curveType === 'detectivity' ? 'Voltage (V)' : 'Wavelength (nm)';
+  const formatCurveLabel = (c: string) => {
+    if (c.startsWith('block_')) {
+      const parts = c.split('_');
+      return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+    return c.toUpperCase();
+  };
+
+  const isWavelength = curveType.toLowerCase().includes('qe') || curveType.toLowerCase().includes('responsivity') || curveType.toLowerCase().includes('absorption');
+  const xLabel = isWavelength ? 'Wavelength (nm)' : 'Voltage (V)';
 
   return (
     <div className="ui-card" style={{ marginBottom: '2.5rem', padding: '1.75rem', backgroundColor: '#FFFFFF' }}>
@@ -66,7 +75,7 @@ export const ComparisonOverlay: React.FC<Props> = ({
             }}
           >
             {availableCurves.map(c => (
-              <option key={c} value={c}>{c.toUpperCase()}</option>
+              <option key={c} value={c}>{formatCurveLabel(c)}</option>
             ))}
           </select>
         </div>
@@ -100,50 +109,33 @@ export const ComparisonOverlay: React.FC<Props> = ({
             {
               x: overlayData.actual_x,
               y: overlayData.actual_y,
-              mode: 'lines' as const,
-              name: 'Actual SCAPS Data',
-              line: { color: '#0F172A', width: 3 }
+              mode: 'markers',
+              name: `Actual SCAPS Data (${parameterName}=${paramVal})`,
+              marker: { color: 'var(--color-accent)', size: 6 }
             },
             {
               x: overlayData.pred_x,
               y: overlayData.pred_y,
-              mode: 'lines' as const,
-              name: 'ML Predicted Curve',
-              line: { color: '#2563EB', dash: 'dash', width: 3 }
+              mode: 'lines',
+              name: `ML Model Prediction (${parameterName}=${paramVal})`,
+              line: { color: 'var(--color-secondary)', width: 2.5, dash: 'solid' }
             }
           ]}
           layout={{
-            title: {
-              text: `Curve Overlay Comparison: ${curveType.toUpperCase()} at ${parameterName} = ${paramVal}`,
-              font: { color: '#0F172A', family: 'Inter, sans-serif', size: 15, weight: 700 }
-            },
+            title: { text: `Ground-Truth Data vs Random Forest Surrogate (${formatCurveLabel(curveType)})`, font: { color: '#0F172A', size: 15 } },
             paper_bgcolor: '#FFFFFF',
             plot_bgcolor: '#FFFFFF',
-            font: { color: '#334155', family: 'Inter, sans-serif', size: 12 },
-            xaxis: {
-              title: { text: xLabel, font: { color: '#0F172A', size: 13, weight: 600 } },
-              tickfont: { color: '#334155', size: 11 },
-              gridcolor: '#E2E8F0',
-              linecolor: '#CBD5E1'
-            },
-            yaxis: {
-              title: { text: 'Value', font: { color: '#0F172A', size: 13, weight: 600 } },
-              tickfont: { color: '#334155', size: 11 },
-              gridcolor: '#E2E8F0',
-              linecolor: '#CBD5E1'
-            },
-            legend: {
-              font: { color: '#0F172A', size: 12 },
-              bgcolor: 'rgba(255, 255, 255, 0.9)',
-              bordercolor: '#E2E8F0',
-              borderwidth: 1
-            },
+            font: { color: '#334155', size: 12 },
+            xaxis: { title: { text: xLabel }, gridcolor: '#E2E8F0', linecolor: '#CBD5E1' },
+            yaxis: { title: { text: 'Response Value' }, gridcolor: '#E2E8F0', linecolor: '#CBD5E1' },
+            legend: { font: { size: 11 }, bgcolor: 'rgba(255,255,255,0.9)' },
+            margin: { l: 65, r: 40, t: 50, b: 55 },
             autosize: true,
-            height: 420
+            height: 400
           }}
           useResizeHandler={true}
           style={{ width: '100%', height: '100%' }}
-          config={{ responsive: true, displaylogo: false }}
+          config={{ responsive: true, displayModeBar: true, displaylogo: false }}
         />
       )}
     </div>

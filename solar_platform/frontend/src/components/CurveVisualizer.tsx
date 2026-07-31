@@ -84,10 +84,49 @@ export const CurveVisualizer: React.FC<Props> = ({ curvesData, parameterName }) 
         Spectral Characteristic Curves
       </h3>
 
-      {curvesData.jv && renderPlot('J-V Characteristic Curves', 'Voltage', 'Current', curvesData.jv, 'Voltage (V)', 'Current Density (mA/cm²)')}
-      {curvesData.qe && renderPlot('Quantum Efficiency (QE) vs Wavelength', 'Wavelength', 'QE', curvesData.qe, 'Wavelength (nm)', 'Quantum Efficiency (%)')}
-      {curvesData.responsivity && renderPlot('Responsivity vs Wavelength', 'Wavelength', 'Responsivity', curvesData.responsivity, 'Wavelength (nm)', 'Responsivity (A/W)')}
-      {curvesData.detectivity && renderPlot('Detectivity (D*) vs Voltage', 'Voltage', 'Detectivity', curvesData.detectivity, 'Voltage (V)', 'Detectivity D* (Jones)')}
+      {Object.entries(curvesData).map(([key, dataList]) => {
+        if (!dataList || dataList.length === 0) return null;
+        const firstRow = dataList[0];
+
+        let xCol = 'Voltage';
+        let yCol = 'Current';
+        let xTitle = 'Voltage (V)';
+        let yTitle = 'Current Density (mA/cm²)';
+        let title = `Characteristic Curves (${key})`;
+
+        if ('Wavelength' in firstRow) {
+          xCol = 'Wavelength';
+          xTitle = 'Wavelength (nm)';
+        }
+
+        if ('QE' in firstRow) {
+          yCol = 'QE';
+          yTitle = 'Quantum Efficiency (%)';
+          title = 'Quantum Efficiency (QE) vs Wavelength';
+        } else if ('Responsivity' in firstRow) {
+          yCol = 'Responsivity';
+          yTitle = 'Responsivity (A/W)';
+          title = 'Responsivity vs Wavelength';
+        } else if ('Detectivity' in firstRow) {
+          yCol = 'Detectivity';
+          yTitle = 'Detectivity D* (Jones)';
+          title = 'Detectivity (D*) vs Voltage';
+        } else if ('Absorption' in firstRow) {
+          yCol = 'Absorption';
+          yTitle = 'Absorption Coefficient α (1/cm)';
+          title = 'Optical Absorption Spectrum';
+        } else if ('Current' in firstRow) {
+          yCol = 'Current';
+          yTitle = 'Current Density (mA/cm²)';
+          title = 'J-V Characteristic Curves';
+        }
+
+        return (
+          <React.Fragment key={key}>
+            {renderPlot(title, xCol, yCol, dataList, xTitle, yTitle)}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 };
