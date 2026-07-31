@@ -189,13 +189,17 @@ async def get_curves(req: TrainRequest):
     parsed_sheet_data = _PARSED_DATA_STORE.get(req.file_id, {}).get(req.sheet_name, {})
     if not parsed_sheet_data:
         session = get_trained_session(req.file_id, req.sheet_name)
-        if not session:
-            raise HTTPException(status_code=400, detail="Sheet models not trained yet. Call /train first.")
-        parsed_sheet_data = session.processed_data
+        if session:
+            parsed_sheet_data = session.processed_data
+        else:
+            parsed_sheet_data = {}
 
     curves_output = {}
     for block_key, df in parsed_sheet_data.items():
-        curves_output[block_key] = df.to_dict(orient="records")
+        if isinstance(df, pd.DataFrame):
+            curves_output[block_key] = df.to_dict(orient="records")
+        elif isinstance(df, list):
+            curves_output[block_key] = df
 
     return CurvesDataResponse(
         sheet_name=req.sheet_name,
