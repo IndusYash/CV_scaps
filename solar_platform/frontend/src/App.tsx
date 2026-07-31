@@ -95,7 +95,12 @@ export const App: React.FC = () => {
       setCurvesData(prev => ({ ...prev, [activeSheet]: curves.curves }));
     } catch (err: any) {
       console.error(err);
-      alert('Training failed: ' + (err.response?.data?.detail || err.message));
+      if (err.response?.status === 404) {
+        alert('Server session expired or local server reloaded. Please re-upload your Excel workbook.');
+        handleClearSession();
+      } else {
+        alert('Training failed: ' + (err.response?.data?.detail || err.message));
+      }
     } finally {
       setLoadingTrain(false);
     }
@@ -116,7 +121,12 @@ export const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error(err);
-      alert('Batch training encountered an error: ' + (err.response?.data?.detail || err.message));
+      if (err.response?.status === 404) {
+        alert('Server session expired or local server reloaded. Please re-upload your Excel workbook.');
+        handleClearSession();
+      } else {
+        alert('Batch training encountered an error: ' + (err.response?.data?.detail || err.message));
+      }
     } finally {
       setLoadingTrainAll(false);
     }
@@ -249,72 +259,62 @@ export const App: React.FC = () => {
                     boxShadow: viewMode === 'summary' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
                   }}
                 >
-                  Summary Table
+                  Summary
                 </button>
               </div>
 
-              {/* Worksheet List */}
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-secondary)', marginBottom: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Select Parameter Sweep
-              </div>
+              {/* Sheet Navigation List */}
+              {viewMode === 'sheet' && (
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
+                    Select Worksheet
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {uploadData.sheets.map((s) => {
+                      const isActive = s.sheet_name === activeSheet;
+                      const isTrained = !!trainingResults[s.sheet_name];
 
-              {uploadData.sheets.map(s => {
-                const res = trainingResults[s.sheet_name];
-                const isTrained = !!res;
-                const isCurrent = viewMode === 'sheet' && activeSheet === s.sheet_name;
-
-                // Compute R2 score badge display
-                const jvR2 = res?.metrics?.jv?.r2;
-                const qeR2 = res?.metrics?.qe?.r2;
-                const avgR2 = jvR2 && qeR2 ? ((jvR2 + qeR2) / 2).toFixed(3) : jvR2 ? jvR2.toFixed(3) : null;
-
-                return (
-                  <button
-                    key={s.sheet_name}
-                    onClick={() => {
-                      setActiveSheet(s.sheet_name);
-                      setViewMode('sheet');
-                    }}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '0.75rem 0.9rem',
-                      marginBottom: '0.5rem',
-                      borderRadius: '8px',
-                      border: `1px solid ${isCurrent ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                      backgroundColor: isCurrent ? 'var(--color-bg)' : '#FFFFFF',
-                      color: isCurrent ? 'var(--color-primary)' : 'var(--color-secondary)',
-                      fontWeight: isCurrent ? 700 : 400,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justify: 'space-between',
-                      transition: 'all 200ms ease'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Layers size={16} color={isCurrent ? 'var(--color-primary)' : 'var(--color-secondary)'} />
-                      <span style={{ fontSize: '0.88rem' }}>{s.sheet_name}</span>
-                    </div>
-
-                    {isTrained ? (
-                      <span style={{ fontSize: '0.7rem', backgroundColor: '#F0FDF4', color: 'var(--color-success)', border: '1px solid #BBF7D0', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>
-                        {avgR2 ? `R²: ${avgR2}` : 'Trained'}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '0.7rem', color: 'var(--color-secondary)', backgroundColor: 'var(--color-bg)', padding: '0.15rem 0.45rem', borderRadius: '4px' }}>
-                        Ready
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                      return (
+                        <button
+                          key={s.sheet_name}
+                          onClick={() => setActiveSheet(s.sheet_name)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justify: 'space-between',
+                            width: '100%',
+                            padding: '0.65rem 0.85rem',
+                            borderRadius: '8px',
+                            border: '1px solid',
+                            borderColor: isActive ? 'var(--color-accent)' : 'transparent',
+                            backgroundColor: isActive ? 'var(--color-accent-light)' : 'transparent',
+                            color: isActive ? 'var(--color-accent)' : 'var(--color-primary)',
+                            fontWeight: isActive ? 700 : 500,
+                            fontSize: '0.86rem',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 150ms ease'
+                          }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {s.sheet_name}
+                          </span>
+                          {isTrained && (
+                            <span style={{ fontSize: '0.68rem', backgroundColor: '#DCFCE7', color: 'var(--color-success)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                              Fitted
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </aside>
 
-            {/* Dashboard Canvas */}
-            <main style={{ flex: 1, padding: '2rem 2.5rem' }}>
+            {/* Content Area */}
+            <main style={{ flex: 1, padding: '2rem 2.5rem', overflowY: 'auto' }}>
               {viewMode === 'summary' ? (
-                /* Multi-Sheet Comparison Dashboard View */
                 <WorkbookSummary
                   uploadData={uploadData}
                   trainingResults={trainingResults}
@@ -326,100 +326,86 @@ export const App: React.FC = () => {
                   loadingTrainAll={loadingTrainAll}
                 />
               ) : (
-                /* Individual Sheet Workspace View */
-                <div>
-                  {/* Sheet Header Card */}
-                  <div className="ui-card" style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <h2 className="text-card-title" style={{ fontSize: '1.4rem', marginBottom: '0.3rem' }}>
-                        {activeSheet} Physical Analysis & Surrogate Modeling
+                currentSheetSummary && (
+                  <div>
+                    {/* Header Info */}
+                    <div style={{ marginBottom: '2rem' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.2rem' }}>
+                        Worksheet Simulation Dataset
+                      </div>
+                      <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--color-primary)', margin: 0 }}>
+                        Sheet: '{currentSheetSummary.sheet_name}'
                       </h2>
-                      <p className="text-muted" style={{ margin: 0 }}>
-                        Swept Parameter: <strong style={{ color: 'var(--color-primary)' }}>{currentSheetSummary?.detected_parameter_name}</strong> ({currentSheetSummary?.detected_parameter_unit || 'Unitless'})
-                      </p>
+                      <div style={{ fontSize: '0.88rem', color: 'var(--color-secondary)', marginTop: '0.3rem' }}>
+                        {currentSheetSummary.row_count} data rows × {currentSheetSummary.col_count} columns | Swept Parameter: <strong>{currentSheetSummary.detected_parameter_name}</strong> ({currentSheetSummary.detected_parameter_unit || 'Unitless'})
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {currentSheetSummary?.curve_types_found.map(ct => (
-                        <span key={ct} style={{ backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', color: 'var(--color-primary)', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 700, fontFamily: 'monospace' }}>
-                          {ct.toUpperCase()}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
 
-                  {/* Controls */}
-                  <TrainingControls
-                    testSize={testSize}
-                    setTestSize={setTestSize}
-                    nEstimators={nEstimators}
-                    setNEstimators={setNEstimators}
-                    randomState={randomState}
-                    setRandomState={setRandomState}
-                    onTrain={handleTrain}
-                    loading={loadingTrain}
-                  />
+                    {/* Physics Metadata Panel */}
+                    <PhysicsPanel
+                      sheetName={currentSheetSummary.sheet_name}
+                      parameterName={currentSheetSummary.detected_parameter_name}
+                    />
 
-                  {/* Content */}
-                  {!currentResult || !activeSheet ? (
-                    <div className="ui-card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-                      <Cpu color="var(--color-primary)" size={48} style={{ marginBottom: '1.25rem' }} />
-                      <h3 className="text-card-title" style={{ marginBottom: '0.5rem' }}>
-                        Surrogate Model Ready for Fitting
-                      </h3>
-                      <p className="text-muted" style={{ maxWidth: '520px', margin: '0 auto 2rem auto' }}>
-                        Adjust the Random Forest hyperparameters above and click <strong>"Train Physics Models"</strong> to fit regressors across JV, QE, and Responsivity curves.
-                      </p>
-                      <button className="btn-primary" onClick={handleTrain} disabled={loadingTrain}>
-                        {loadingTrain ? 'Fitting Regressors...' : 'Train Physics Models'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Accuracy Metrics */}
+                    {/* Training Controls */}
+                    <TrainingControls
+                      testSize={testSize}
+                      setTestSize={setTestSize}
+                      nEstimators={nEstimators}
+                      setNEstimators={setNEstimators}
+                      randomState={randomState}
+                      setRandomState={setRandomState}
+                      onTrain={handleTrain}
+                      loading={loadingTrain}
+                      isTrained={!!currentResult}
+                    />
+
+                    {/* Metrics Panel */}
+                    {currentResult && (
                       <MetricsPanel metrics={currentResult.metrics} />
+                    )}
 
-                      {/* Raw Spectral Curves */}
-                      <CurveVisualizer
-                        curvesData={currentCurves || null}
-                        parameterName={currentResult.parameter_name}
-                      />
-
-                      {/* Live Point Predictor */}
+                    {/* Point Predictor */}
+                    {currentResult && (
                       <PointPredictor
                         fileId={uploadData.file_id}
-                        sheetName={activeSheet}
+                        sheetName={currentSheetSummary.sheet_name}
                         availableCurves={currentResult.available_curve_types}
                         parameterName={currentResult.parameter_name}
                         parameterValues={currentResult.parameter_values}
                         xRanges={currentResult.x_ranges}
                       />
+                    )}
 
-                      {/* Curve Comparison Overlay */}
+                    {/* Curve Comparison Overlay */}
+                    {currentResult && (
                       <ComparisonOverlay
                         fileId={uploadData.file_id}
-                        sheetName={activeSheet}
+                        sheetName={currentSheetSummary.sheet_name}
                         availableCurves={currentResult.available_curve_types}
                         parameterName={currentResult.parameter_name}
                         parameterValues={currentResult.parameter_values}
                       />
+                    )}
 
-                      {/* Physical Theory Accordion */}
-                      <PhysicsPanel
-                        sheetName={activeSheet}
-                        parameterName={currentResult.parameter_name}
+                    {/* Plotly Curves Visualizer */}
+                    {currentCurves && (
+                      <CurveVisualizer
+                        curvesData={currentCurves}
+                        parameterName={currentResult?.parameter_name || currentSheetSummary.detected_parameter_name}
                       />
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )
               )}
             </main>
           </div>
-
-          {/* ACADEMIC FOOTER ALSO PRESENT ON DASHBOARD SCREEN */}
-          <Footer />
         </div>
       )}
+
+      <Footer />
     </div>
   );
 };
+
 export default App;

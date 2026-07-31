@@ -133,19 +133,30 @@ async def upload_file(file: UploadFile = File(...)):
 async def train_model(req: TrainRequest):
     """Trains Random Forest models for all curves/blocks in the specified sheet using multi-parameter features."""
     if req.file_id not in _WORKBOOK_STORE:
-        raise HTTPException(status_code=404, detail="File ID not found. Please re-upload the dataset.")
+        raise HTTPException(status_code=404, detail="File ID not found in active session. Please re-upload your dataset.")
 
     sheets = _WORKBOOK_STORE[req.file_id]
-    if req.sheet_name not in sheets:
-        raise HTTPException(status_code=404, detail=f"Sheet '{req.sheet_name}' not found in workbook.")
+
+    matched_sheet_name = None
+    if req.sheet_name in sheets:
+        matched_sheet_name = req.sheet_name
+    else:
+        s_target = req.sheet_name.strip().lower()
+        for s_key in sheets.keys():
+            if s_key.strip().lower() == s_target:
+                matched_sheet_name = s_key
+                break
+
+    if not matched_sheet_name:
+        raise HTTPException(status_code=404, detail=f"Sheet '{req.sheet_name}' not found in workbook. Available sheets: {list(sheets.keys())}")
 
     try:
-        df_raw = sheets[req.sheet_name]
-        parsed_sheet_data = _PARSED_DATA_STORE.get(req.file_id, {}).get(req.sheet_name)
+        df_raw = sheets[matched_sheet_name]
+        parsed_sheet_data = _PARSED_DATA_STORE.get(req.file_id, {}).get(matched_sheet_name)
 
         trained_sessions = train_sheet_models(
             file_id=req.file_id,
-            sheet_name=req.sheet_name,
+            sheet_name=matched_sheet_name,
             df_raw=df_raw,
             parsed_sheet_data=parsed_sheet_data,
             test_size=req.test_size,

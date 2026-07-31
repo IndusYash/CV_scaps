@@ -6,11 +6,11 @@ interface Props {
   parameterName: string;
 }
 
-export const PhysicsPanel: React.FC<Props> = ({ sheetName, parameterName }) => {
+export const PhysicsPanel: React.FC<Props> = ({ sheetName = '', parameterName = '' }) => {
   const [open, setOpen] = useState(false);
 
   const getPhysicsTheory = (): string[] => {
-    const sLower = sheetName.toLowerCase();
+    const sLower = (sheetName || '').toLowerCase();
     if (sLower.includes('pvk') || sLower.includes('absorber')) {
       return [
         'The Perovskite (PVK) layer functions as the primary optical absorber and photocarrier generator.',
@@ -57,16 +57,18 @@ export const PhysicsPanel: React.FC<Props> = ({ sheetName, parameterName }) => {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <BookOpen color="var(--accent-gold)" size={22} />
-          <h3>Physical Interpretation & Photovoltaic Theory — {sheetName}</h3>
+          <h3>Physical Interpretation & Photovoltaic Theory — {sheetName || 'Worksheet'}</h3>
         </div>
-        {open ? <ChevronUp color="var(--accent-gold)" /> : <ChevronDown color="var(--accent-gold)" />}
+        <button className="btn-secondary" style={{ padding: '0.3rem 0.6rem' }}>
+          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
       </div>
 
       {open && (
-        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-glow)' }}>
-          <ul style={{ paddingLeft: '1.5rem', color: 'var(--text-muted)' }}>
-            {points.map((pt, i) => (
-              <li key={i} style={{ marginBottom: '0.5rem' }}>{pt}</li>
+        <div style={{ marginTop: '1rem', borderTop: '1px solid var(--color-border)', paddingTop: '1rem' }}>
+          <ul style={{ paddingLeft: '1.2rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            {points.map((pt, idx) => (
+              <li key={idx}>{pt}</li>
             ))}
           </ul>
         </div>
