@@ -19,7 +19,7 @@ class CSVInputReader(IInputReader):
         return FormatType.CSV
 
     def can_read(self, filename: str, contents: bytes) -> bool:
-        return filename.endswith(".csv")
+        return filename.lower().endswith(".csv")
 
     def read(self, filename: str, contents: bytes) -> DocumentModel:
         df_raw = pd.read_csv(io.BytesIO(contents), header=None)
@@ -59,10 +59,9 @@ class CSVInputReader(IInputReader):
                 cell = DocumentCell(
                     row_index=r_idx,
                     col_index=c_idx,
+                    data_type=d_type,
                     raw_value=raw_v,
                     formatted_value=fmt_v,
-                    data_type=d_type,
-                    is_merged=False,
                 )
                 row_cells.append(cell)
             cells_grid.append(row_cells)
@@ -77,7 +76,6 @@ class CSVInputReader(IInputReader):
 
         return DocumentModel(
             document_name=filename,
-            format_type=FormatType.CSV,
-            metadata={"sheet_count": 1},
+            format_type=self.supported_format,
             sheets=[doc_sheet],
         )

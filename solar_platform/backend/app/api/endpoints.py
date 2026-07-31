@@ -52,7 +52,8 @@ HUMAN_LABELS = {
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
     """Uploads an Excel or CSV file, executes production pipeline asynchronously, and returns sheet & block summaries."""
-    if not file.filename.endswith((".xlsx", ".xls", ".csv")):
+    filename_lower = file.filename.lower()
+    if not filename_lower.endswith((".xlsx", ".xls", ".csv")):
         raise HTTPException(status_code=400, detail="Invalid file format. Supported extensions: .xlsx, .xls, .csv")
 
     try:
@@ -66,7 +67,7 @@ async def upload_file(file: UploadFile = File(...)):
         _PARSED_DATA_STORE[file_id] = parsed_data
 
         # Fallback raw pandas sheets for legacy compatibility
-        if file.filename.endswith((".xlsx", ".xls")):
+        if filename_lower.endswith((".xlsx", ".xls")):
             sheets_dict = parse_excel_workbook(contents)
         else:
             sheets_dict = {"CSV_Data": pd.read_csv(pd.io.common.BytesIO(contents))}

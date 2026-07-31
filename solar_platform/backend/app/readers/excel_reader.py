@@ -20,7 +20,7 @@ class ExcelInputReader(IInputReader):
         return FormatType.EXCEL
 
     def can_read(self, filename: str, contents: bytes) -> bool:
-        return filename.endswith((".xlsx", ".xls"))
+        return filename.lower().endswith((".xlsx", ".xls"))
 
     def read(self, filename: str, contents: bytes) -> DocumentModel:
         excel_file = pd.ExcelFile(io.BytesIO(contents))
@@ -68,10 +68,10 @@ class ExcelInputReader(IInputReader):
                     cell = DocumentCell(
                         row_index=r_idx,
                         col_index=c_idx,
+                        data_type=d_type,
                         raw_value=raw_v,
                         formatted_value=fmt_v,
-                        data_type=d_type,
-                        is_merged=False,
+                        style_metadata=StyleMetadata(),
                     )
                     row_cells.append(cell)
                 cells_grid.append(row_cells)
@@ -87,7 +87,6 @@ class ExcelInputReader(IInputReader):
 
         return DocumentModel(
             document_name=filename,
-            format_type=FormatType.EXCEL,
-            metadata={"sheet_count": len(doc_sheets)},
+            format_type=self.supported_format,
             sheets=doc_sheets,
         )
