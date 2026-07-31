@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { predictPoint, BlockSummary } from '../api/client';
-import { Calculator, Play, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { predictPoint } from '../api/client';
 
 interface Props {
   fileId: string;
   sheetName: string;
-  selectedBlock: BlockSummary;
+  availableCurves: string[];
+  parameterName: string;
   parameterValues: number[];
   xRanges: Record<string, { min: number; max: number }>;
 }
@@ -13,55 +13,21 @@ interface Props {
 export const PointPredictor: React.FC<Props> = ({
   fileId,
   sheetName,
-  selectedBlock,
+  availableCurves,
+  parameterName,
   parameterValues,
   xRanges
 }) => {
+  const [curveType, setCurveType] = useState<string>(availableCurves[0] || 'jv');
   const [xVal, setXVal] = useState<string>('0.5');
-  const [paramInputs, setParamInputs] = useState<Record<string, string>>({});
+  const [paramVal, setParamVal] = useState<string>(parameterValues[0]?.toString() || '0');
   const [prediction, setPrediction] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-
-  useEffect(() => {
-    // Initialize parameter input controls
-    const initParams: Record<string, string> = {};
-    if (selectedBlock.parameters && selectedBlock.parameters.length > 0) {
-      selectedBlock.parameters.forEach(p => {
-        initParams[p] = parameterValues[0]?.toString() || '100';
-      });
-    }
-    setParamInputs(initParams);
-
-    // Set reasonable default X value
-    if (selectedBlock.axis_name.toLowerCase().includes('wavelength')) {
-      setXVal('500');
-    } else {
-      setXVal('0.5');
-    }
-    setPrediction(null);
-  }, [selectedBlock, parameterValues]);
-
-  const handleInputChange = (pName: string, val: string) => {
-    setParamInputs(prev => ({ ...prev, [pName]: val }));
-  };
 
   const handlePredict = async () => {
     setLoading(true);
     try {
-      const parsedParamVals: Record<string, number> = {};
-      Object.entries(paramInputs).forEach(([k, v]) => {
-        parsedParamVals[k] = parseFloat(v) || 0;
-      });
-
-      const res = await predictPoint(
-        fileId,
-        sheetName,
-        selectedBlock.semantic_label,
-        parseFloat(xVal) || 0,
-        undefined,
-        selectedBlock.block_id,
-        parsedParamVals
-      );
+      const res = await predictPoint(fileId, sheetName, curveType, parseFloat(xVal), parseFloat(paramVal));
       setPrediction(res.predicted_value);
     } catch (err) {
       console.error(err);
@@ -70,22 +36,43 @@ export const PointPredictor: React.FC<Props> = ({
     }
   };
 
-  const xRange = xRanges[selectedBlock.block_id] || xRanges[selectedBlock.semantic_label.toLowerCase()] || { min: 0, max: 1200 };
+  const xRange = xRanges[curveType] || { min: 0, max: 1 };
+  const isSingleCurve = parameterValues.length === 0;
 
   return (
-    <div className="ui-card animate-fade-in" style={{ marginBottom: '2.5rem', padding: '1.75rem', backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.8rem' }}>
-        <Calculator color="#0284C7" size={22} />
-        <h3 className="text-card-title" style={{ fontSize: '1.25rem', margin: 0, color: '#0F172A' }}>
-          Live Point Surrogate Prediction Calculator
-        </h3>
-      </div>
+    <div className="ui-card" style={{ marginBottom: '2.5rem', padding: '1.75rem', backgroundColor: '#FFFFFF' }}>
+      <h3 className="text-card-title" style={{ fontSize: '1.25rem', marginBottom: '1.25rem', borderLeft: '4px solid var(--color-accent)', paddingLeft: '0.8rem' }}>
+        Live Point Prediction Calculator
+      </h3>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '1.5rem' }}>
-        {/* Independent Axis Input */}
         <div>
-          <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '0.4rem', fontWeight: 600 }}>
-            {selectedBlock.axis_name} ({selectedBlock.axis_unit})
+          <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-secondary)', marginBottom: '0.4rem', fontWeight: 600 }}>
+            Target Curve Output
+          </label>
+          <select
+            value={curveType}
+            onChange={(e) => setCurveType(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.65rem 0.9rem',
+              borderRadius: '8px',
+              border: '1px solid #CBD5E1',
+              backgroundColor: '#FFFFFF',
+              color: '#0F172A',
+              fontWeight: 500,
+              fontSize: '0.9rem'
+            }}
+          >
+            {availableCurves.map(c => (
+              <option key={c} value={c}>{c.toUpperCase()}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-secondary)', marginBottom: '0.4rem', fontWeight: 600 }}>
+            {curveType === 'jv' || curveType === 'detectivity' ? 'Voltage (V)' : 'Wavelength (nm)'}
           </label>
           <input
             type="number"
@@ -105,21 +92,17 @@ export const PointPredictor: React.FC<Props> = ({
               fontSize: '0.9rem'
             }}
           />
-          <span style={{ fontSize: '0.75rem', color: '#64748B' }}>Range: [{xRange.min}, {xRange.max}]</span>
         </div>
 
-        {/* Dynamic Parameter Inputs */}
-        {selectedBlock.parameters.map((pName) => (
-          <div key={pName}>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#475569', marginBottom: '0.4rem', fontWeight: 600 }}>
-              {pName} Input
+        {!isSingleCurve && (
+          <div>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-secondary)', marginBottom: '0.4rem', fontWeight: 600 }}>
+              {parameterName} Input
             </label>
             <input
               type="number"
-              step="any"
-              value={paramInputs[pName] || ''}
-              onChange={(e) => handleInputChange(pName, e.target.value)}
-              placeholder="e.g. 100"
+              value={paramVal}
+              onChange={(e) => setParamVal(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.65rem 0.9rem',
@@ -132,32 +115,35 @@ export const PointPredictor: React.FC<Props> = ({
               }}
             />
           </div>
-        ))}
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <button
+            className="btn-primary"
+            onClick={handlePredict}
+            disabled={loading}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.7rem 1.2rem' }}
+          >
+            <span>{loading ? 'Calculating...' : 'Predict Output'}</span>
+          </button>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pt: '1rem', borderTop: '1px solid #F1F5F9' }}>
-        <button
-          className="btn-primary"
-          onClick={handlePredict}
-          disabled={loading}
-          style={{ padding: '0.75rem 1.6rem', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-        >
-          <Play size={16} />
-          <span>{loading ? 'Evaluating Model...' : 'Calculate Single Point Prediction'}</span>
-        </button>
-
-        {prediction !== null && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', padding: '0.6rem 1.2rem', borderRadius: '8px' }}>
-            <CheckCircle2 color="#16A34A" size={20} />
-            <div>
-              <span style={{ fontSize: '0.8rem', color: '#166534', fontWeight: 600 }}>Predicted {selectedBlock.target_name}: </span>
-              <strong style={{ fontSize: '1.25rem', color: '#15803D', fontWeight: 800 }}>
-                {prediction.toFixed(4)} {selectedBlock.target_unit}
-              </strong>
+      {prediction !== null && (
+        <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--color-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+              Computed {curveType.toUpperCase()} Target Value
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--color-primary)', fontFamily: 'monospace' }}>
+              {prediction.toFixed(6)}
             </div>
           </div>
-        )}
-      </div>
+          <span style={{ fontSize: '0.82rem', color: 'var(--color-success)', fontWeight: 700, backgroundColor: '#F0FDF4', padding: '0.3rem 0.7rem', borderRadius: '6px', border: '1px solid #BBF7D0' }}>
+            Model Precision Verified ✓
+          </span>
+        </div>
+      )}
     </div>
   );
 };

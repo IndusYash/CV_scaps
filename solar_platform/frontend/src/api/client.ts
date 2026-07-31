@@ -4,23 +4,6 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
   : '/api';
 
-export interface BlockSummary {
-  block_id: string;
-  category: string;
-  semantic_label: string;
-  human_label: string;
-  axis_name: string;
-  axis_unit: string;
-  target_name: string;
-  target_unit: string;
-  parameters: string[];
-  row_count: number;
-  confidence: number;
-  scientific_validity: number;
-  warnings: string[];
-  summary_metrics?: Record<string, Record<string, number>>;
-}
-
 export interface SheetSummary {
   sheet_name: string;
   row_count: number;
@@ -31,7 +14,6 @@ export interface SheetSummary {
   detected_x_axis: string;
   curve_types_found: string[];
   is_single_curve_mode: boolean;
-  blocks: BlockSummary[];
 }
 
 export interface UploadResponse {
@@ -85,7 +67,6 @@ export const uploadExcelFile = async (file: File): Promise<UploadResponse> => {
 export const trainModels = async (
   fileId: string,
   sheetName: string,
-  blockId?: string,
   testSize: number = 0.2,
   nEstimators: number = 200,
   randomState: number = 42
@@ -93,7 +74,6 @@ export const trainModels = async (
   const response = await axios.post<TrainResponse>(`${API_BASE}/train`, {
     file_id: fileId,
     sheet_name: sheetName,
-    block_id: blockId,
     test_size: testSize,
     n_estimators: nEstimators,
     random_state: randomState,
@@ -114,18 +94,14 @@ export const predictPoint = async (
   sheetName: string,
   curveType: string,
   xVal: number,
-  paramVal?: number,
-  blockId?: string,
-  paramVals?: Record<string, number>
+  paramVal?: number
 ): Promise<PointPredictResponse> => {
   const response = await axios.post<PointPredictResponse>(`${API_BASE}/predict/point`, {
     file_id: fileId,
     sheet_name: sheetName,
     curve_type: curveType,
-    block_id: blockId,
     x_val: xVal,
     param_val: paramVal,
-    param_vals: paramVals,
   });
   return response.data;
 };
@@ -134,17 +110,13 @@ export const predictCurveOverlay = async (
   fileId: string,
   sheetName: string,
   curveType: string,
-  paramVal: number,
-  blockId?: string,
-  paramVals?: Record<string, number>
+  paramVal: number
 ): Promise<CurvePredictResponse> => {
   const response = await axios.post<CurvePredictResponse>(`${API_BASE}/predict/curve`, {
     file_id: fileId,
     sheet_name: sheetName,
     curve_type: curveType,
-    block_id: blockId,
     param_val: paramVal,
-    param_vals: paramVals,
   });
   return response.data;
 };

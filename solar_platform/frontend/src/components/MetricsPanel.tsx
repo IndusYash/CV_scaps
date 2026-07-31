@@ -1,72 +1,75 @@
 import React from 'react';
-import { Award, CheckCircle2, AlertCircle } from 'lucide-react';
-import { MetricPair, BlockSummary } from '../api/client';
+import { Award, CheckCircle2, AlertTriangle, AlertCircle } from 'lucide-react';
+import { MetricPair } from '../api/client';
 
 interface Props {
   metrics: Record<string, MetricPair> | null;
-  selectedBlock: BlockSummary;
 }
 
-export const MetricsPanel: React.FC<Props> = ({ metrics, selectedBlock }) => {
-  if (!metrics || Object.keys(metrics).length === 0) return null;
+export const MetricsPanel: React.FC<Props> = ({ metrics }) => {
+  if (!metrics) return null;
 
-  const metricItem = metrics[selectedBlock.block_id] || metrics[selectedBlock.semantic_label.toLowerCase()] || Object.values(metrics)[0];
-  if (!metricItem) return null;
+  const curveLabels: Record<string, string> = {
+    jv: 'J-V Characteristic Curve',
+    qe: 'Quantum Efficiency (QE)',
+    responsivity: 'Spectral Responsivity',
+    detectivity: 'Detectivity (D*)'
+  };
 
-  const r2 = metricItem.r2;
-  const mae = metricItem.mae;
+  const getR2Class = (r2: number) => {
+    if (r2 >= 0.99) return 'excel';
+    if (r2 >= 0.95) return 'good';
+    return 'review';
+  };
+
+  const getR2Icon = (r2: number) => {
+    if (r2 >= 0.99) return <CheckCircle2 size={16} color="var(--accent-mint)" />;
+    if (r2 >= 0.95) return <AlertTriangle size={16} color="var(--accent-gold)" />;
+    return <AlertCircle size={16} color="var(--accent-coral)" />;
+  };
 
   return (
-    <div className="ui-card animate-fade-in" style={{ padding: '1.75rem', marginBottom: '2.5rem', backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.8rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <Award color="#16A34A" size={22} />
-          <h3 className="text-card-title" style={{ fontSize: '1.25rem', margin: 0, color: '#0F172A' }}>
-            Surrogate Model Performance & Accuracy — {selectedBlock.human_label}
-          </h3>
-        </div>
-        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#16A34A', backgroundColor: '#DCFCE7', padding: '0.25rem 0.65rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <CheckCircle2 size={14} /> Fitted Model Active
+    <div style={{ marginBottom: '2.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', borderLeft: '3px solid var(--accent-mint)', paddingLeft: '0.8rem' }}>
+          <Award color="var(--accent-mint)" size={22} />
+          Surrogate Model Validation Metrics
+        </h3>
+        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+          Evaluated on 20% holdout test dataset
         </span>
       </div>
 
-      {/* Metric Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
-        <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', borderTop: '4px solid #16A34A' }}>
-          <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: '0.3rem' }}>
-            Coefficient of Determination (R²)
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: r2 > 0.9 ? '#16A34A' : '#0F172A' }}>
-            {r2.toFixed(4)}
-          </div>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.2rem' }}>
+        {Object.entries(metrics).map(([key, pair]) => {
+          const r2Class = getR2Class(pair.r2);
+          return (
+            <div key={key} className="glass-card" style={{ padding: '1.4rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
+                <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                  {curveLabels[key] || key.toUpperCase()}
+                </span>
+                {getR2Icon(pair.r2)}
+              </div>
 
-        <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0', borderTop: '4px solid #0284C7' }}>
-          <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: '0.3rem' }}>
-            Mean Absolute Error (MAE)
-          </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0F172A' }}>
-            {mae.toFixed(4)} {selectedBlock.target_unit}
-          </div>
-        </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                <div className="metric-card-container">
+                  <div className={`metric-val ${r2Class}`}>
+                    {pair.r2.toFixed(4)}
+                  </div>
+                  <div className="metric-lbl">R² Score</div>
+                </div>
 
-        <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-          <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: '0.3rem' }}>
-            Model Feature Set X
-          </div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A', marginTop: '0.4rem' }}>
-            {[selectedBlock.axis_name, ...selectedBlock.parameters].join(', ')}
-          </div>
-        </div>
-
-        <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-          <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: '0.3rem' }}>
-            Target Output Variable y
-          </div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0284C7', marginTop: '0.4rem' }}>
-            {selectedBlock.target_name} ({selectedBlock.target_unit})
-          </div>
-        </div>
+                <div className="metric-card-container">
+                  <div className="metric-val" style={{ color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
+                    {pair.mae.toFixed(4)}
+                  </div>
+                  <div className="metric-lbl">MAE Loss</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

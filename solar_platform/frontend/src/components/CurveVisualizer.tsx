@@ -34,7 +34,7 @@ export const CurveVisualizer: React.FC<Props> = ({ curvesData, parameterName }) 
     });
 
     return (
-      <div className="ui-card animate-fade-in" style={{ marginBottom: '2rem', padding: '1.5rem', overflow: 'hidden', backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0' }}>
+      <div className="ui-card" style={{ marginBottom: '2rem', padding: '1.5rem', overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
         <Plot
           data={traces}
           layout={{
@@ -61,7 +61,7 @@ export const CurveVisualizer: React.FC<Props> = ({ curvesData, parameterName }) 
             },
             legend: {
               font: { color: '#0F172A', size: 12 },
-              bgcolor: 'rgba(255, 255, 255, 0.95)',
+              bgcolor: 'rgba(255, 255, 255, 0.9)',
               bordercolor: '#E2E8F0',
               borderwidth: 1
             },
@@ -80,53 +80,14 @@ export const CurveVisualizer: React.FC<Props> = ({ curvesData, parameterName }) 
   return (
     <div style={{ marginBottom: '2.5rem' }}>
       <h3 className="text-section-title" style={{ fontSize: '1.35rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.6rem', borderLeft: '4px solid var(--color-accent)', paddingLeft: '0.8rem' }}>
-        <Activity color="#0284C7" size={22} />
-        Discovered Experimental Characteristic Curves
+        <Activity color="var(--color-accent)" size={22} />
+        Spectral Characteristic Curves
       </h3>
 
-      {Object.entries(curvesData).map(([key, dataList]) => {
-        if (!dataList || dataList.length === 0 || key.toLowerCase().includes('summary')) return null;
-        const sampleRow = dataList[0];
-
-        let xCol = 'Voltage';
-        let yCol = 'Current';
-        let xTitle = 'Voltage (V)';
-        let yTitle = 'Current Density (mA/cm²)';
-        let title = `Characteristic Curves (${key})`;
-
-        if ('Wavelength' in sampleRow) {
-          xCol = 'Wavelength';
-          xTitle = 'Wavelength (nm)';
-        }
-
-        if ('QE' in sampleRow) {
-          yCol = 'QE';
-          yTitle = 'Quantum Efficiency (%)';
-          title = 'Quantum Efficiency (QE) Spectrum';
-        } else if ('Responsivity' in sampleRow) {
-          yCol = 'Responsivity';
-          yTitle = 'Responsivity (A/W)';
-          title = 'Spectral Responsivity Curves';
-        } else if ('Detectivity' in sampleRow) {
-          yCol = 'Detectivity';
-          yTitle = 'Detectivity D* (Jones)';
-          title = 'Specific Detectivity (D*)';
-        } else if ('Absorption' in sampleRow) {
-          yCol = 'Absorption';
-          yTitle = 'Absorption Coefficient α (1/cm)';
-          title = 'Optical Absorption Coefficient Spectrum';
-        } else if ('Current' in sampleRow) {
-          yCol = 'Current';
-          yTitle = 'Current Density (mA/cm²)';
-          title = 'Current-Voltage (J-V) Characteristic Curves';
-        }
-
-        return (
-          <React.Fragment key={key}>
-            {renderPlot(title, xCol, yCol, dataList, xTitle, yTitle)}
-          </React.Fragment>
-        );
-      })}
+      {curvesData.jv && renderPlot('J-V Characteristic Curves', 'Voltage', 'Current', curvesData.jv, 'Voltage (V)', 'Current Density (mA/cm²)')}
+      {curvesData.qe && renderPlot('Quantum Efficiency (QE) vs Wavelength', 'Wavelength', 'QE', curvesData.qe, 'Wavelength (nm)', 'Quantum Efficiency (%)')}
+      {curvesData.responsivity && renderPlot('Responsivity vs Wavelength', 'Wavelength', 'Responsivity', curvesData.responsivity, 'Wavelength (nm)', 'Responsivity (A/W)')}
+      {curvesData.detectivity && renderPlot('Detectivity (D*) vs Voltage', 'Voltage', 'Detectivity', curvesData.detectivity, 'Voltage (V)', 'Detectivity D* (Jones)')}
     </div>
   );
 };
