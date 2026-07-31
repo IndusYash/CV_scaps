@@ -16,6 +16,7 @@ from app.models.schemas import (
     TrainResponse,
     UploadResponse,
 )
+from app.pipeline import UnifiedParserPipeline
 from app.services.ml_engine import (
     get_trained_session,
     predict_curve_comparison,
@@ -26,25 +27,35 @@ from app.services.parser import detect_sheet_schema, parse_excel_workbook
 
 router = APIRouter(prefix="/api")
 
-# In-memory file storage keyed by file_id
+# In-memory stores keyed by file_id
 _WORKBOOK_STORE: Dict[str, Dict[str, pd.DataFrame]] = {}
+_PARSED_DATA_STORE: Dict[str, Dict[str, Dict[str, pd.DataFrame]]] = {}
+_PIPELINE = UnifiedParserPipeline()
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
-    """Uploads an Excel file, parses all sheets, and returns sheet summaries."""
+    """Uploads an Excel file, executes production-ready architectural pipeline, and returns sheet summaries."""
     if not file.filename.endswith((".xlsx", ".xls")):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload an Excel (.xlsx or .xls) file.")
 
     try:
         contents = await file.read()
-        sheets_dict = parse_excel_workbook(contents)
         file_id = str(uuid.uuid4())
+
+        # Execute Production Architecture Pipeline
+        audit_result, parsed_data = _PIPELINE.parse_workbook(file.filename, contents, file_id)
+        _PARSED_DATA_STORE[file_id] = parsed_data
+
+        # Fallback raw pandas sheets for legacy compatibility
+        sheets_dict = parse_excel_workbook(contents)
         _WORKBOOK_STORE[file_id] = sheets_dict
 
         sheet_summaries: List[SheetSummary] = []
-        for sheet_name, df in sheets_dict.items():
-            schema_info = detect_sheet_schema(df, sheet_name)
+        for sheet_audit in audit_result.sheets:
+            sheet_name = sheet_audit.sheet_name
+            df_raw = sheets_dict.get(sheet_name, pd.DataFrame())
+            schema_info = detect_sheet_schema(df_raw, sheet_name)
             sheet_summaries.append(SheetSummary(**schema_info))
 
         return UploadResponse(
