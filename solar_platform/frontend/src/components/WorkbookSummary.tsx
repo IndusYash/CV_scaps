@@ -1,11 +1,11 @@
 import React from 'react';
-import { Layers, Award, CheckCircle2, ArrowRight, BarChart2 } from 'lucide-react';
-import { UploadResponse, TrainResponse } from '../api/client';
+import { Layers, Award, CheckCircle2, ArrowRight, BarChart2, AlertTriangle } from 'lucide-react';
+import { UploadResponse, TrainResponse, BlockSummary } from '../api/client';
 
 interface Props {
   uploadData: UploadResponse;
   trainingResults: Record<string, TrainResponse>;
-  onSelectSheet: (sheetName: string) => void;
+  onSelectSheetAndBlock: (sheetName: string, block: BlockSummary) => void;
   onTrainAll: () => void;
   loadingTrainAll: boolean;
 }
@@ -13,50 +13,47 @@ interface Props {
 export const WorkbookSummary: React.FC<Props> = ({
   uploadData,
   trainingResults,
-  onSelectSheet,
+  onSelectSheetAndBlock,
   onTrainAll,
   loadingTrainAll
 }) => {
   const sheets = uploadData.sheets || [];
   const trainedSheetNames = Object.keys(trainingResults);
   const totalSheets = sheets.length;
+  const totalBlocks = sheets.reduce((acc, s) => acc + (s.blocks ? s.blocks.length : 0), 0);
   const trainedCount = trainedSheetNames.length;
 
-  // Compute average R2 across all trained sheets
   let totalR2 = 0;
-  let highestR2 = -1;
-  let highestSheet = '';
+  let countR2 = 0;
 
   trainedSheetNames.forEach(sName => {
     const res = trainingResults[sName];
     if (res && res.metrics) {
-      const jvR2 = res.metrics.jv?.r2 || 0;
-      const qeR2 = res.metrics.qe?.r2 || 0;
-      const avgSheetR2 = (jvR2 + qeR2) / (jvR2 && qeR2 ? 2 : 1);
-      totalR2 += avgSheetR2;
-      if (avgSheetR2 > highestR2) {
-        highestR2 = avgSheetR2;
-        highestSheet = sName;
-      }
+      Object.values(res.metrics).forEach(m => {
+        if (m.r2 !== undefined) {
+          totalR2 += m.r2;
+          countR2 += 1;
+        }
+      });
     }
   });
 
-  const avgR2 = trainedCount > 0 ? (totalR2 / trainedCount).toFixed(4) : 'N/A';
+  const avgR2 = countR2 > 0 ? (totalR2 / countR2).toFixed(4) : 'N/A';
 
   return (
     <div className="animate-fade-in" style={{ width: '100%' }}>
       {/* Overview Header Banner */}
-      <div className="ui-card" style={{ padding: '2rem', marginBottom: '2rem', backgroundColor: '#FFFFFF' }}>
+      <div className="ui-card" style={{ padding: '2rem', marginBottom: '2rem', backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div>
-            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
-              Consolidated Workbook Analytics
+            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0284C7', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+              SCAPS Multi-Experiment Analytics Dashboard
             </div>
-            <h2 className="text-card-title" style={{ fontSize: '1.6rem', marginBottom: '0.4rem' }}>
-              Multi-Sheet Simulation Summary Dashboard
+            <h2 className="text-card-title" style={{ fontSize: '1.6rem', marginBottom: '0.4rem', color: '#0F172A' }}>
+              Workbook Experiment Hierarchy
             </h2>
-            <p className="text-muted" style={{ margin: 0 }}>
-              Comparative overview of physical parameter sweeps and surrogate model accuracies across all workbook worksheets.
+            <p style={{ color: '#475569', margin: 0, fontSize: '0.92rem' }}>
+              Discovered experimental blocks, physical parameter sweeps, and surrogate models across all workbook worksheets.
             </p>
           </div>
 
@@ -68,124 +65,122 @@ export const WorkbookSummary: React.FC<Props> = ({
           )}
         </div>
 
-        {/* 4 Overview Metric Stat Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.25rem' }}>
-          <div style={{ padding: '1.25rem', backgroundColor: 'var(--color-bg)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-secondary)', fontWeight: 600, marginBottom: '0.2rem' }}>
+        {/* Overview Metric Stat Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem' }}>
+          <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: '0.2rem' }}>
               Total Worksheets
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0F172A' }}>
               {totalSheets}
             </div>
           </div>
 
-          <div style={{ padding: '1.25rem', backgroundColor: 'var(--color-bg)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-secondary)', fontWeight: 600, marginBottom: '0.2rem' }}>
-              Surrogate Models Fitted
+          <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: '0.2rem' }}>
+              Discovered Experiments / Blocks
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: trainedCount === totalSheets ? 'var(--color-success)' : 'var(--color-primary)' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0284C7' }}>
+              {totalBlocks} Blocks
+            </div>
+          </div>
+
+          <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: '0.2rem' }}>
+              Fitted Model Sessions
+            </div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: trainedCount === totalSheets ? '#16A34A' : '#0F172A' }}>
               {trainedCount} / {totalSheets}
             </div>
           </div>
 
-          <div style={{ padding: '1.25rem', backgroundColor: 'var(--color-bg)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-secondary)', fontWeight: 600, marginBottom: '0.2rem' }}>
-              Average Model R² Score
+          <div style={{ padding: '1.25rem', backgroundColor: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+            <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600, marginBottom: '0.2rem' }}>
+              Average Model R² Accuracy
             </div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0F172A' }}>
               {avgR2 !== 'N/A' ? avgR2 : '—'}
-            </div>
-          </div>
-
-          <div style={{ padding: '1.25rem', backgroundColor: 'var(--color-bg)', borderRadius: '10px', border: '1px solid var(--color-border)' }}>
-            <div style={{ fontSize: '0.8rem', color: 'var(--color-secondary)', fontWeight: 600, marginBottom: '0.2rem' }}>
-              Highest Accuracy Sheet
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {highestSheet ? `${highestSheet} (${(highestR2 * 100).toFixed(1)}%)` : '—'}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Comparative Results Table */}
-      <div className="ui-card" style={{ padding: '1.75rem', backgroundColor: '#FFFFFF' }}>
-        <h3 className="text-card-title" style={{ fontSize: '1.2rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Layers size={20} color="var(--color-accent)" />
-          <span>Worksheet Comparative Results Table</span>
-        </h3>
+      {/* Sheet & Block Detailed Grid */}
+      <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0F172A', marginBottom: '1.25rem' }}>
+        Discovered Experimental Blocks by Sheet
+      </h3>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
-            <thead>
-              <tr style={{ backgroundColor: 'var(--color-bg)', borderBottom: '2px solid var(--color-border)' }}>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Worksheet</th>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Swept Parameter</th>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Curve Types</th>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>J-V R² Score</th>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>QE R² Score</th>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700 }}>Status</th>
-                <th style={{ padding: '0.9rem 1rem', color: 'var(--color-primary)', fontWeight: 700, textAlign: 'right' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sheets.map(s => {
-                const isTrained = !!trainingResults[s.sheet_name];
-                const res = trainingResults[s.sheet_name];
-                const jvR2 = res?.metrics?.jv?.r2;
-                const qeR2 = res?.metrics?.qe?.r2;
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem' }}>
+        {sheets.map((s) => {
+          const blocks = s.blocks || [];
+          const isTrained = trainedSheetNames.includes(s.sheet_name);
 
-                return (
-                  <tr key={s.sheet_name} style={{ borderBottom: '1px solid var(--color-border)', transition: 'background-color 150ms ease' }}>
-                    <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--color-primary)' }}>
-                      {s.sheet_name}
-                    </td>
-                    <td style={{ padding: '1rem', color: 'var(--color-secondary)' }}>
-                      <strong>{s.detected_parameter_name}</strong> ({s.detected_parameter_unit || 'Unitless'})
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
-                        {s.curve_types_found.map(ct => (
-                          <span key={ct} style={{ fontSize: '0.72rem', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 600, fontFamily: 'monospace' }}>
-                            {ct.toUpperCase()}
-                          </span>
-                        ))}
+          return (
+            <div key={s.sheet_name} className="ui-card" style={{ padding: '1.5rem', backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid #F1F5F9', paddingBottom: '0.6rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Layers size={18} color="#0284C7" />
+                  <h4 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: '#0F172A' }}>
+                    Sheet: '{s.sheet_name}'
+                  </h4>
+                </div>
+                {isTrained && (
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#16A34A', backgroundColor: '#DCFCE7', padding: '0.2rem 0.5rem', borderRadius: '6px' }}>
+                    Fitted
+                  </span>
+                )}
+              </div>
+
+              <div style={{ fontSize: '0.82rem', color: '#64748B', marginBottom: '1rem' }}>
+                Dimensions: {s.row_count} rows × {s.col_count} cols | {blocks.length} Discovered Block{blocks.length > 1 ? 's' : ''}
+              </div>
+
+              {/* Block Cards List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                {blocks.map((b) => (
+                  <div
+                    key={b.block_id}
+                    onClick={() => onSelectSheetAndBlock(s.sheet_name, b)}
+                    style={{
+                      padding: '0.9rem',
+                      borderRadius: '8px',
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: b.category === 'SUMMARY' ? '#FEFCE8' : '#F8FAFC',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#0284C7')}
+                    onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#E2E8F0')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                      <strong style={{ fontSize: '0.92rem', color: '#0F172A' }}>
+                        {b.human_label}
+                      </strong>
+                      <ArrowRight size={16} color="#0284C7" />
+                    </div>
+
+                    <div style={{ fontSize: '0.8rem', color: '#475569', display: 'flex', flexWrap: 'wrap', gap: '0.8rem' }}>
+                      <span><strong>Axis:</strong> {b.axis_name} ({b.axis_unit})</span>
+                      <span><strong>Target:</strong> {b.target_name} ({b.target_unit})</span>
+                    </div>
+
+                    {b.parameters.length > 0 && (
+                      <div style={{ fontSize: '0.78rem', color: '#0284C7', fontWeight: 600, marginTop: '0.3rem' }}>
+                        Swept Parameters: {b.parameters.join(', ')}
                       </div>
-                    </td>
-                    <td style={{ padding: '1rem', fontWeight: 700, color: jvR2 && jvR2 > 0.95 ? 'var(--color-success)' : 'var(--color-primary)' }}>
-                      {jvR2 !== undefined ? jvR2.toFixed(4) : '—'}
-                    </td>
-                    <td style={{ padding: '1rem', fontWeight: 700, color: qeR2 && qeR2 > 0.95 ? 'var(--color-success)' : 'var(--color-primary)' }}>
-                      {qeR2 !== undefined ? qeR2.toFixed(4) : '—'}
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      {isTrained ? (
-                        <span style={{ fontSize: '0.78rem', backgroundColor: '#F0FDF4', color: 'var(--color-success)', border: '1px solid #BBF7D0', padding: '0.25rem 0.6rem', borderRadius: '6px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <CheckCircle2 size={13} />
-                          <span>Trained</span>
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: '0.78rem', color: 'var(--color-secondary)', backgroundColor: 'var(--color-bg)', border: '1px solid var(--color-border)', padding: '0.25rem 0.6rem', borderRadius: '6px' }}>
-                          Ready
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '1rem', textAlign: 'right' }}>
-                      <button
-                        className="btn-secondary"
-                        onClick={() => onSelectSheet(s.sheet_name)}
-                        style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
-                      >
-                        <span>View Analytics</span>
-                        <ArrowRight size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    )}
+
+                    {b.warnings.length > 0 && (
+                      <div style={{ fontSize: '0.75rem', color: '#D97706', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <AlertTriangle size={12} /> Physics Warning: {b.warnings[0]}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

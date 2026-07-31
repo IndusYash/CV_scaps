@@ -4,17 +4,25 @@ from typing import List, Tuple
 from app.domain.audit import CandidateEvaluation, DataBlockAudit, PluginSelectionAudit
 from app.domain.ir import IntermediateRepresentationV2
 from app.semantics.base_plugin import ISemanticPlugin
+from app.semantics.plugins.absorption_plugin import AbsorptionPlugin
+from app.semantics.plugins.detectivity_plugin import DetectivityPlugin
 from app.semantics.plugins.generic_plugin import GenericParametricPlugin
 from app.semantics.plugins.jv_plugin import JVPlugin
 from app.semantics.plugins.qe_plugin import QEPlugin
+from app.semantics.plugins.responsivity_plugin import ResponsivityPlugin
+from app.semantics.plugins.summary_plugin import SummaryMetricsPlugin
 
 
 class SemanticRegistry:
     def __init__(self):
         self._plugins: List[ISemanticPlugin] = []
-        # Register default core domain plugins
+        # Register core domain plugins (higher specificity ranks evaluated first)
+        self.register_plugin(AbsorptionPlugin())
         self.register_plugin(JVPlugin())
         self.register_plugin(QEPlugin())
+        self.register_plugin(ResponsivityPlugin())
+        self.register_plugin(DetectivityPlugin())
+        self.register_plugin(SummaryMetricsPlugin())
         self.register_plugin(GenericParametricPlugin())
 
     def register_plugin(self, plugin: ISemanticPlugin) -> None:
@@ -47,7 +55,7 @@ class SemanticRegistry:
         )
 
         selected_plugin, best_eval = evaluations[0]
-        
+
         # Attach plugin evaluation trace to audit
         candidate_audits = [ev[1] for ev in evaluations]
         block_audit.plugin_selection = PluginSelectionAudit(

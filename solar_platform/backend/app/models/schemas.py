@@ -4,6 +4,23 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class BlockSummary(BaseModel):
+    block_id: str
+    category: str
+    semantic_label: str
+    human_label: str
+    axis_name: str
+    axis_unit: str
+    target_name: str
+    target_unit: str
+    parameters: List[str]
+    row_count: int
+    confidence: float
+    scientific_validity: float
+    warnings: List[str]
+    summary_metrics: Optional[Dict[str, Dict[str, float]]] = None
+
+
 class SheetSummary(BaseModel):
     sheet_name: str
     row_count: int
@@ -14,6 +31,7 @@ class SheetSummary(BaseModel):
     detected_x_axis: str
     curve_types_found: List[str]
     is_single_curve_mode: bool = False
+    blocks: List[BlockSummary] = []
 
 
 class UploadResponse(BaseModel):
@@ -33,6 +51,7 @@ class ColumnMapping(BaseModel):
 class TrainRequest(BaseModel):
     file_id: str
     sheet_name: str
+    block_id: Optional[str] = None
     mapping: Optional[ColumnMapping] = None
     test_size: float = 0.2
     n_estimators: int = 200
@@ -57,8 +76,10 @@ class PointPredictRequest(BaseModel):
     file_id: str
     sheet_name: str
     curve_type: str
+    block_id: Optional[str] = None
     x_val: float
     param_val: Optional[float] = None
+    param_vals: Optional[Dict[str, float]] = None
 
 
 class PointPredictResponse(BaseModel):
@@ -70,7 +91,9 @@ class CurvePredictRequest(BaseModel):
     file_id: str
     sheet_name: str
     curve_type: str
-    param_val: float
+    block_id: Optional[str] = None
+    param_val: Optional[float] = None
+    param_vals: Optional[Dict[str, float]] = None
 
 
 class CurvePredictResponse(BaseModel):
