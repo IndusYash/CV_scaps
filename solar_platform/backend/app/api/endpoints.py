@@ -16,18 +16,25 @@ from app.models.schemas import (
     CurvePredictRequest,
     CurvePredictResponse,
     CurvesDataResponse,
+    ExperimentPayload,
+    ExperimentSummary,
+    ParameterDefinition,
     PointPredictRequest,
     PointPredictResponse,
     SheetSummary,
+    TracePayload,
     TrainRequest,
     TrainResponse,
     UploadResponse,
 )
 from app.pipeline import UnifiedParserPipeline
+from app.services.experiment_grouper import ExperimentGrouperEngine, ScientificExperiment
 from app.services.ml_engine import (
+    get_parsed_experiments,
     get_trained_session,
     predict_curve_comparison,
     predict_point,
+    register_parsed_experiments,
     train_sheet_models,
 )
 from app.services.parser import detect_sheet_schema, parse_excel_workbook
@@ -38,6 +45,7 @@ router = APIRouter(prefix="/api")
 _WORKBOOK_STORE: Dict[str, Dict[str, pd.DataFrame]] = {}
 _PARSED_DATA_STORE: Dict[str, Dict[str, Dict[str, pd.DataFrame]]] = {}
 _PIPELINE = UnifiedParserPipeline()
+_GROUPER = ExperimentGrouperEngine()
 
 HUMAN_LABELS = {
     "JV": "Current-Voltage (J-V) Characteristic",
@@ -45,13 +53,14 @@ HUMAN_LABELS = {
     "RESPONSIVITY": "Spectral Responsivity (A/W)",
     "DETECTIVITY": "Specific Detectivity (Jones)",
     "ABSORPTION": "Optical Absorption Coefficient (1/cm)",
+    "PHOTON_ENERGY": "Photon Energy Coordinate (eV)",
     "SUMMARY_METRICS": "Device Performance Summary Metrics",
 }
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
-    """Uploads an Excel or CSV file, executes production pipeline asynchronously, and returns sheet & block summaries."""
+    """Uploads an Excel or CSV file, executes production pipeline asynchronously, and returns sheet & experiment summaries."""
     filename_lower = file.filename.lower()
     if not filename_lower.endswith((".xlsx", ".xls", ".csv")):
         raise HTTPException(status_code=400, detail="Invalid file format. Supported extensions: .xlsx, .xls, .csv")
@@ -65,6 +74,7 @@ async def upload_file(file: UploadFile = File(...)):
             _PIPELINE.parse_workbook, file.filename, contents, file_id
         )
         _PARSED_DATA_STORE[file_id] = parsed_data
+        register_parsed_experiments(file_id, audit_result)
 
         # Fallback raw pandas sheets for legacy compatibility
         if filename_lower.endswith((".xlsx", ".xls")):
@@ -91,7 +101,6 @@ async def upload_file(file: UploadFile = File(...)):
                 params = [p.name for p in ir.parameters] if (ir and ir.parameters) else []
 
                 r_count = len(ir.axes[0].values) if (ir and ir.axes and ir.axes[0].values) else (len(df_raw) if not df_raw.empty else 0)
-
                 human_lbl = HUMAN_LABELS.get(b.semantic_label.upper(), b.semantic_label)
 
                 block_summaries.append(
@@ -113,7 +122,46 @@ async def upload_file(file: UploadFile = File(...)):
                     )
                 )
 
+            # Build Phase 2 Experiment Summaries
+            exps = get_parsed_experiments(file_id, sheet_name)
+            exp_summaries: List[ExperimentSummary] = []
+            for exp in exps:
+                df_exp = exp.combined_dataframe
+                
+                param_names = [
+                    c for c in df_exp.columns
+                    if c not in [exp.axis_name, exp.target_name, "Run", "Trace_ID", "Block_ID"]
+                ]
+                
+                if param_names:
+                    traces_cnt = len(df_exp.groupby(param_names))
+                elif "Trace_ID" in df_exp.columns and len(df_exp["Trace_ID"].unique()) > 0:
+                    traces_cnt = len(df_exp["Trace_ID"].unique())
+                elif "Block_ID" in df_exp.columns:
+                    traces_cnt = len(df_exp["Block_ID"].unique())
+                else:
+                    traces_cnt = 1
+
+                human_lbl = HUMAN_LABELS.get(exp.target_name.upper(), f"{exp.target_name} ({exp.target_unit})")
+
+                exp_summaries.append(
+                    ExperimentSummary(
+                        experiment_id=exp.experiment_id,
+                        sheet_name=exp.sheet_name,
+                        semantic_type=exp.target_name,
+                        human_label=human_lbl,
+                        axis_name=exp.axis_name,
+                        axis_unit=exp.axis_unit,
+                        target_name=exp.target_name,
+                        target_unit=exp.target_unit,
+                        parameter_names=param_names,
+                        trace_count=traces_cnt,
+                        source_block_count=len(exp.blocks),
+                    )
+                )
+
             schema_info["blocks"] = block_summaries
+            schema_info["experiments"] = exp_summaries
             sheet_summaries.append(SheetSummary(**schema_info))
 
         return UploadResponse(
@@ -131,7 +179,7 @@ async def upload_file(file: UploadFile = File(...)):
 
 @router.post("/train", response_model=TrainResponse)
 async def train_model(req: TrainRequest):
-    """Trains Random Forest models for all curves/blocks in the specified sheet using multi-parameter features."""
+    """Trains Random Forest models for all ScientificExperiments on the specified sheet."""
     if req.file_id not in _WORKBOOK_STORE:
         raise HTTPException(status_code=404, detail="File ID not found in active session. Please re-upload your dataset.")
 
@@ -171,13 +219,13 @@ async def train_model(req: TrainRequest):
 
         aggregated_metrics = {}
         x_ranges = {}
-        for bkey, sess in trained_sessions.items():
+        for exp_key, sess in trained_sessions.items():
             for ctype, mpair in sess.metrics.items():
-                aggregated_metrics[bkey] = mpair
+                aggregated_metrics[exp_key] = mpair
                 df = sess.processed_data.get(ctype, pd.DataFrame())
-                x_col = "Voltage" if "Voltage" in df.columns else "Wavelength"
+                x_col = sess.experiment.axis_name if sess.experiment else ("Voltage" if "Voltage" in df.columns else "Wavelength")
                 if not df.empty and x_col in df.columns:
-                    x_ranges[bkey] = {
+                    x_ranges[exp_key] = {
                         "min": float(df[x_col].min()),
                         "max": float(df[x_col].max()),
                     }
@@ -196,25 +244,129 @@ async def train_model(req: TrainRequest):
 
 @router.post("/curves", response_model=CurvesDataResponse)
 async def get_curves(req: TrainRequest):
-    """Returns long-format data records for all processed curves to render Plotly figures."""
-    parsed_sheet_data = _PARSED_DATA_STORE.get(req.file_id, {}).get(req.sheet_name, {})
-    if not parsed_sheet_data:
-        session = get_trained_session(req.file_id, req.sheet_name)
-        if session:
-            parsed_sheet_data = session.processed_data
-        else:
-            parsed_sheet_data = {}
+    """Returns scientific experiment payloads containing clean trace-oriented structures for Plotly visualization."""
+    exps = get_parsed_experiments(req.file_id, req.sheet_name)
+    exp_payloads: List[ExperimentPayload] = []
 
+    for exp in exps:
+        df_exp = exp.combined_dataframe
+
+        # Skip experiments that have no data
+        if df_exp is None or df_exp.empty:
+            continue
+
+        x_col = exp.axis_name
+        target_col = exp.target_name
+
+        # Guard: x_col and target_col must actually exist in the dataframe
+        if x_col not in df_exp.columns or target_col not in df_exp.columns:
+            continue
+
+        param_cols = [
+            c for c in df_exp.columns
+            if c not in [x_col, target_col, "Run", "Trace_ID", "Block_ID"]
+        ]
+
+        param_defs: List[ParameterDefinition] = []
+        for p_col in param_cols:
+            unique_vals = sorted([float(v) for v in df_exp[p_col].unique() if pd.notna(v)])
+            p_unit = ""
+            for b in exp.blocks:
+                ir = b.intermediate_representation
+                if ir:
+                    for p in ir.parameters:
+                        if p.name == p_col:
+                            p_unit = p.unit
+                            break
+            param_defs.append(
+                ParameterDefinition(name=p_col, unit=p_unit, values=unique_vals)
+            )
+
+        traces: List[TracePayload] = []
+        trace_counter = 0
+
+        if param_cols:
+            group_cols = param_cols
+        elif "Trace_ID" in df_exp.columns and len(df_exp["Trace_ID"].unique()) > 0:
+            group_cols = ["Trace_ID"]
+        elif "Block_ID" in df_exp.columns:
+            group_cols = ["Block_ID"]
+        else:
+            group_cols = []
+
+        if group_cols:
+            grouped = df_exp.groupby(group_cols, sort=False)
+        else:
+            grouped = [(("default",), df_exp)]
+
+        for grp_keys, grp_df in grouped:
+            # Skip empty groups
+            if grp_df.empty:
+                continue
+            # Guard: both axis and target columns must exist in this group slice
+            if x_col not in grp_df.columns or target_col not in grp_df.columns:
+                continue
+
+            trace_counter += 1
+            grp_sorted = grp_df.sort_values(x_col)
+            
+            x_arr = [float(v) for v in grp_sorted[x_col].tolist() if pd.notna(v)]
+            y_arr = [float(v) for v in grp_sorted[target_col].tolist() if pd.notna(v)]
+            
+            p_dict: Dict[str, float] = {}
+            for p_col in param_cols:
+                p_val = grp_sorted[p_col].iloc[0]
+                if pd.notna(p_val):
+                    p_dict[p_col] = float(p_val)
+
+            if param_cols and p_dict:
+                lbl_parts = [f"{k}: {v}" for k, v in p_dict.items()]
+                lbl_str = ", ".join(lbl_parts)
+            elif "Trace_ID" in grp_sorted.columns and pd.notna(grp_sorted["Trace_ID"].iloc[0]):
+                lbl_str = str(grp_sorted["Trace_ID"].iloc[0])
+            else:
+                lbl_str = f"{exp.target_name}"
+
+            source_b_id = str(grp_sorted["Block_ID"].iloc[0]) if "Block_ID" in grp_sorted.columns else f"block_{exp.experiment_id}"
+
+            traces.append(
+                TracePayload(
+                    trace_id=f"trace_{trace_counter:03d}",
+                    label=lbl_str,
+                    parameters=p_dict,
+                    x=x_arr,
+                    y=y_arr,
+                    source_block_id=source_b_id,
+                )
+            )
+
+        human_lbl = HUMAN_LABELS.get(exp.target_name.upper(), f"{exp.target_name} ({exp.target_unit})")
+
+        exp_payloads.append(
+            ExperimentPayload(
+                experiment_id=exp.experiment_id,
+                sheet_name=exp.sheet_name,
+                semantic_type=exp.target_name,
+                human_label=human_lbl,
+                axis={"name": exp.axis_name, "unit": exp.axis_unit},
+                target={"name": exp.target_name, "unit": exp.target_unit},
+                parameters=param_defs,
+                traces=traces,
+                source_block_ids=[b.block_id for b in exp.blocks],
+            )
+        )
+
+    # Fallback legacy dictionary for backwards compatibility
+    parsed_sheet_data = _PARSED_DATA_STORE.get(req.file_id, {}).get(req.sheet_name, {})
     curves_output = {}
     for block_key, df in parsed_sheet_data.items():
         if isinstance(df, pd.DataFrame):
             curves_output[block_key] = df.to_dict(orient="records")
-        elif isinstance(df, list):
-            curves_output[block_key] = df
 
     return CurvesDataResponse(
         sheet_name=req.sheet_name,
         curves=curves_output,
+        experiments=exp_payloads,
     )
 
 
@@ -225,6 +377,8 @@ async def predict_point_endpoint(req: PointPredictRequest):
         pred_val = predict_point(
             file_id=req.file_id,
             sheet_name=req.sheet_name,
+            experiment_id=req.experiment_id,
+            target_name=req.target_name,
             curve_type=req.curve_type,
             block_id=req.block_id,
             x_val=req.x_val,
@@ -232,7 +386,7 @@ async def predict_point_endpoint(req: PointPredictRequest):
             param_vals=req.param_vals,
         )
         return PointPredictResponse(
-            curve_type=req.curve_type,
+            curve_type=req.experiment_id or req.target_name or req.curve_type or "Prediction",
             predicted_value=pred_val,
         )
     except Exception as exc:
@@ -246,13 +400,15 @@ async def predict_curve_endpoint(req: CurvePredictRequest):
         act_x, act_y, prd_x, prd_y = predict_curve_comparison(
             file_id=req.file_id,
             sheet_name=req.sheet_name,
+            experiment_id=req.experiment_id,
+            target_name=req.target_name,
             curve_type=req.curve_type,
             block_id=req.block_id,
             param_val=req.param_val or 1.0,
             param_vals=req.param_vals,
         )
         return CurvePredictResponse(
-            curve_type=req.curve_type,
+            curve_type=req.experiment_id or req.target_name or req.curve_type or "Comparison",
             param_val=req.param_val or 1.0,
             actual_x=act_x,
             actual_y=act_y,

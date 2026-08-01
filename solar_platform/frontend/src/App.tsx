@@ -9,9 +9,9 @@ import { ComparisonOverlay } from './components/ComparisonOverlay';
 import { PhysicsPanel } from './components/PhysicsPanel';
 import { WorkbookSummary } from './components/WorkbookSummary';
 import { Footer } from './components/Footer';
-import { trainModels, fetchCurvesData, UploadResponse, TrainResponse } from './api/client';
+import { trainModels, fetchCurvesData, UploadResponse, TrainResponse, ExperimentPayload } from './api/client';
 
-const SESSION_KEY = 'SOLAR_SIMULATION_SESSION_V1';
+const SESSION_KEY = 'SOLAR_SIMULATION_SESSION_V2';
 
 export const App: React.FC = () => {
   const [uploadData, setUploadData] = useState<UploadResponse | null>(null);
@@ -26,6 +26,7 @@ export const App: React.FC = () => {
   // State per trained sheet
   const [trainingResults, setTrainingResults] = useState<Record<string, TrainResponse>>({});
   const [curvesData, setCurvesData] = useState<Record<string, Record<string, any[]>>>({});
+  const [experimentsData, setExperimentsData] = useState<Record<string, ExperimentPayload[]>>({});
   const [loadingTrain, setLoadingTrain] = useState<boolean>(false);
   const [loadingTrainAll, setLoadingTrainAll] = useState<boolean>(false);
 
@@ -40,6 +41,7 @@ export const App: React.FC = () => {
           setActiveSheet(parsed.activeSheet || parsed.uploadData.sheets?.[0]?.sheet_name || null);
           if (parsed.trainingResults) setTrainingResults(parsed.trainingResults);
           if (parsed.curvesData) setCurvesData(parsed.curvesData);
+          if (parsed.experimentsData) setExperimentsData(parsed.experimentsData);
           if (parsed.viewMode) setViewMode(parsed.viewMode);
         }
       }
@@ -57,18 +59,20 @@ export const App: React.FC = () => {
           activeSheet,
           trainingResults,
           curvesData,
+          experimentsData,
           viewMode
         }));
       } catch (e) {
         console.error('Failed to cache session:', e);
       }
     }
-  }, [uploadData, activeSheet, trainingResults, curvesData, viewMode]);
+  }, [uploadData, activeSheet, trainingResults, curvesData, experimentsData, viewMode]);
 
   const handleUploadSuccess = (data: UploadResponse) => {
     setUploadData(data);
     setTrainingResults({});
     setCurvesData({});
+    setExperimentsData({});
     setViewMode('sheet');
     if (data.sheets && data.sheets.length > 0) {
       setActiveSheet(data.sheets[0].sheet_name);
@@ -81,6 +85,7 @@ export const App: React.FC = () => {
     setActiveSheet(null);
     setTrainingResults({});
     setCurvesData({});
+    setExperimentsData({});
     setViewMode('sheet');
   };
 
@@ -93,6 +98,9 @@ export const App: React.FC = () => {
 
       const curves = await fetchCurvesData(uploadData.file_id, activeSheet);
       setCurvesData(prev => ({ ...prev, [activeSheet]: curves.curves }));
+      if (curves.experiments) {
+        setExperimentsData(prev => ({ ...prev, [activeSheet]: curves.experiments }));
+      }
     } catch (err: any) {
       console.error(err);
       if (err.response?.status === 404) {
@@ -106,6 +114,16 @@ export const App: React.FC = () => {
     }
   };
 
+  // Automatically fetch curves when switching sheets if uploadData is ready
+  useEffect(() => {
+    if (uploadData && activeSheet && !experimentsData[activeSheet]) {
+      fetchCurvesData(uploadData.file_id, activeSheet).then(res => {
+        if (res.curves) setCurvesData(prev => ({ ...prev, [activeSheet]: res.curves }));
+        if (res.experiments) setExperimentsData(prev => ({ ...prev, [activeSheet]: res.experiments }));
+      }).catch(err => console.error(err));
+    }
+  }, [uploadData, activeSheet]);
+
   // 1-CLICK BATCH TRAINING ACROSS ALL WORKSHEETS
   const handleTrainAll = async () => {
     if (!uploadData || !uploadData.sheets || uploadData.sheets.length === 0) return;
@@ -118,6 +136,9 @@ export const App: React.FC = () => {
 
         setTrainingResults(prev => ({ ...prev, [sName]: result }));
         setCurvesData(prev => ({ ...prev, [sName]: curves.curves }));
+        if (curves.experiments) {
+          setExperimentsData(prev => ({ ...prev, [sName]: curves.experiments }));
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -134,11 +155,11 @@ export const App: React.FC = () => {
 
   const currentSheetSummary = uploadData?.sheets?.find(s => s.sheet_name === activeSheet);
   const currentResult = activeSheet ? trainingResults[activeSheet] : undefined;
-  const currentCurves = activeSheet ? curvesData[activeSheet] : undefined;
+  const currentExperiments = activeSheet ? experimentsData[activeSheet] : undefined;
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--color-bg)' }}>
-      {/* ELEGANT STICKY NAVBAR WITH OFFICIAL MMMUT LOGO */}
+      {/* STICKY NAVBAR */}
       <header style={{
         height: '72px',
         backgroundColor: '#FFFFFF',
@@ -148,7 +169,6 @@ export const App: React.FC = () => {
         zIndex: 100
       }}>
         <div className="max-content" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Left Side: Official MMMUT Crest Logo & Department */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
             <img
               src="/mmmut_logo.png"
@@ -165,7 +185,6 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Side: Supervisor & Version */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem', color: 'var(--color-secondary)' }}>
               <Award size={16} color="var(--color-accent)" />
@@ -175,7 +194,7 @@ export const App: React.FC = () => {
             <span style={{ color: '#CBD5E1' }}>|</span>
 
             <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-primary)', backgroundColor: 'var(--color-bg)', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
-              Version 1.0
+              Version 2.0 (Phase 3 Integration)
             </span>
 
             {uploadData && (
@@ -194,10 +213,8 @@ export const App: React.FC = () => {
 
       {/* MAIN CONTENT AREA */}
       {!uploadData ? (
-        /* Full-Page Landing View */
         <FileUploader onUploadSuccess={handleUploadSuccess} />
       ) : (
-        /* Workspace Dashboard View */
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div style={{ display: 'flex', flex: 1 }}>
             {/* Sidebar */}
@@ -209,7 +226,6 @@ export const App: React.FC = () => {
               display: 'flex',
               flexDirection: 'column'
             }}>
-              {/* Batch Action: Train All Sheets */}
               <button
                 className="btn-primary"
                 onClick={handleTrainAll}
@@ -225,7 +241,6 @@ export const App: React.FC = () => {
                 <span>{loadingTrainAll ? 'Training All Sheets...' : 'Train All Worksheets'}</span>
               </button>
 
-              {/* View Switcher Tabs */}
               <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem', backgroundColor: 'var(--color-bg)', padding: '0.25rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
                 <button
                   onClick={() => setViewMode('sheet')}
@@ -263,7 +278,6 @@ export const App: React.FC = () => {
                 </button>
               </div>
 
-              {/* Sheet Navigation List */}
               {viewMode === 'sheet' && (
                 <div style={{ flex: 1, overflowY: 'auto' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.6rem' }}>
@@ -281,7 +295,7 @@ export const App: React.FC = () => {
                           style={{
                             display: 'flex',
                             alignItems: 'center',
-                            justify: 'space-between',
+                            justifyContent: 'space-between',
                             width: '100%',
                             padding: '0.65rem 0.85rem',
                             borderRadius: '8px',
@@ -328,7 +342,6 @@ export const App: React.FC = () => {
               ) : (
                 currentSheetSummary && (
                   <div>
-                    {/* Header Info */}
                     <div style={{ marginBottom: '2rem' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', marginBottom: '0.2rem' }}>
                         Worksheet Simulation Dataset
@@ -337,17 +350,19 @@ export const App: React.FC = () => {
                         Sheet: '{currentSheetSummary.sheet_name}'
                       </h2>
                       <div style={{ fontSize: '0.88rem', color: 'var(--color-secondary)', marginTop: '0.3rem' }}>
-                        {currentSheetSummary.row_count} data rows × {currentSheetSummary.col_count} columns | Swept Parameter: <strong>{currentSheetSummary.detected_parameter_name}</strong> ({currentSheetSummary.detected_parameter_unit || 'Unitless'})
+                        {currentSheetSummary.row_count} data rows × {currentSheetSummary.col_count} columns | Scientific Experiments: <strong>{currentSheetSummary.experiments?.length || 0}</strong>
                       </div>
                     </div>
 
-                    {/* Physics Metadata Panel */}
                     <PhysicsPanel
                       sheetName={currentSheetSummary.sheet_name}
                       parameterName={currentSheetSummary.detected_parameter_name}
                     />
 
-                    {/* Training Controls */}
+                    {/* Scientific Curves Visualizer */}
+                    <CurveVisualizer experiments={currentExperiments || null} />
+
+                    {/* Hyperparameter Training Controls */}
                     <TrainingControls
                       testSize={testSize}
                       setTestSize={setTestSize}
@@ -357,7 +372,6 @@ export const App: React.FC = () => {
                       setRandomState={setRandomState}
                       onTrain={handleTrain}
                       loading={loadingTrain}
-                      isTrained={!!currentResult}
                     />
 
                     {/* Metrics Panel */}
@@ -385,14 +399,6 @@ export const App: React.FC = () => {
                         availableCurves={currentResult.available_curve_types}
                         parameterName={currentResult.parameter_name}
                         parameterValues={currentResult.parameter_values}
-                      />
-                    )}
-
-                    {/* Plotly Curves Visualizer */}
-                    {currentCurves && (
-                      <CurveVisualizer
-                        curvesData={currentCurves}
-                        parameterName={currentResult?.parameter_name || currentSheetSummary.detected_parameter_name}
                       />
                     )}
                   </div>

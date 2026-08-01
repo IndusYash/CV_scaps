@@ -33,6 +33,7 @@ class DependentVariable(BaseModel):
     data_shape: List[int] = Field(default_factory=list)  # E.g. [N_axis, N_param1]
     dense_matrix: Optional[List[List[float]]] = None
     sparse_entries: Optional[List[SparseEntry]] = None
+    column_labels: List[str] = Field(default_factory=list)  # E.g. ["AM1.5G", "400 nm", "500 nm", "600 nm"]
 
 
 class IntermediateRepresentationV2(BaseModel):

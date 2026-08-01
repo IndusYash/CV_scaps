@@ -11,11 +11,26 @@ class TableSegmenter:
         self.max_adj_dist = max_adjacency_distance
 
     def segment_sheet(self, sheet: DocumentSheet) -> List[DataBlockAudit]:
-        """Discovers independent contiguous data table blocks within a worksheet using 2D BFS spatial clustering."""
+        """Discovers independent contiguous data table blocks within a worksheet using 2D BFS spatial clustering.
+
+        Enforces structural column boundaries: BFS cannot bridge across a column that is completely empty of data.
+        """
         if sheet.row_count == 0 or sheet.col_count == 0:
             return []
 
-        # Step 1: Create 2D Cell Density Matrix (1 if non-empty, 0 if empty)
+        # Identify completely empty columns (no text or numeric data)
+        empty_cols = set()
+        for c in range(sheet.col_count):
+            has_data = any(
+                sheet.get_cell(r, c) is not None and
+                sheet.get_cell(r, c).data_type != CellDataType.EMPTY and
+                bool(sheet.get_cell(r, c).formatted_value and sheet.get_cell(r, c).formatted_value.strip())
+                for r in range(sheet.row_count)
+            )
+            if not has_data:
+                empty_cols.add(c)
+
+        # Step 1: 2D Cell Density Matrix
         visited = [[False for _ in range(sheet.col_count)] for _ in range(sheet.row_count)]
         blocks: List[DataBlockAudit] = []
         block_counter = 0
@@ -41,6 +56,11 @@ class TableSegmenter:
                             nr, nc = curr_r + dr, curr_c + dc
                             if 0 <= nr < sheet.row_count and 0 <= nc < sheet.col_count:
                                 if not visited[nr][nc]:
+                                    # Enforce structural column boundary: do not bridge across fully empty columns
+                                    min_c, max_c = min(curr_c, nc), max(curr_c, nc)
+                                    if any(ec in empty_cols for ec in range(min_c, max_c + 1)):
+                                        continue
+
                                     adj_cell = sheet.get_cell(nr, nc)
                                     if adj_cell and adj_cell.data_type != CellDataType.EMPTY:
                                         visited[nr][nc] = True

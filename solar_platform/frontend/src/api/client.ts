@@ -4,6 +4,64 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
   : '/api';
 
+export interface ParameterDefinition {
+  name: string;
+  unit: string;
+  values: number[];
+}
+
+export interface TracePayload {
+  trace_id: string;
+  label: string;
+  parameters: Record<string, number>;
+  x: number[];
+  y: number[];
+  source_block_id: string;
+}
+
+export interface ExperimentPayload {
+  experiment_id: string;
+  sheet_name: string;
+  semantic_type: string;
+  human_label: string;
+  axis: { name: string; unit: string };
+  target: { name: string; unit: string };
+  parameters: ParameterDefinition[];
+  traces: TracePayload[];
+  source_block_ids: string[];
+}
+
+export interface ExperimentSummary {
+  experiment_id: string;
+  sheet_name: string;
+  semantic_type: string;
+  human_label: string;
+  axis_name: string;
+  axis_unit: string;
+  target_name: string;
+  target_unit: string;
+  parameter_names: string[];
+  trace_count: number;
+  source_block_count: number;
+}
+
+export interface BlockSummary {
+  block_id: string;
+  category: string;
+  semantic_label: string;
+  human_label: string;
+  axis_name: string;
+  axis_unit: string;
+  target_name: string;
+  target_unit: string;
+  parameters: string[];
+  row_count: number;
+  confidence: number;
+  scientific_validity: number;
+  warnings: string[];
+  summary_metrics?: Record<string, Record<string, number>>;
+}
+
 export interface SheetSummary {
   sheet_name: string;
   row_count: number;
@@ -14,6 +72,8 @@ export interface SheetSummary {
   detected_x_axis: string;
   curve_types_found: string[];
   is_single_curve_mode: boolean;
+  blocks: BlockSummary[];
+  experiments: ExperimentSummary[];
 }
 
 export interface UploadResponse {
@@ -39,6 +99,7 @@ export interface TrainResponse {
 export interface CurvesDataResponse {
   sheet_name: string;
   curves: Record<string, any[]>;
+  experiments: ExperimentPayload[];
 }
 
 export interface PointPredictResponse {
@@ -94,14 +155,18 @@ export const predictPoint = async (
   sheetName: string,
   curveType: string,
   xVal: number,
-  paramVal?: number
+  paramVal?: number,
+  paramVals?: Record<string, number>
 ): Promise<PointPredictResponse> => {
   const response = await axios.post<PointPredictResponse>(`${API_BASE}/predict/point`, {
     file_id: fileId,
     sheet_name: sheetName,
+    experiment_id: curveType,
+    target_name: curveType,
     curve_type: curveType,
     x_val: xVal,
     param_val: paramVal,
+    param_vals: paramVals,
   });
   return response.data;
 };
@@ -110,13 +175,17 @@ export const predictCurveOverlay = async (
   fileId: string,
   sheetName: string,
   curveType: string,
-  paramVal: number
+  paramVal: number,
+  paramVals?: Record<string, number>
 ): Promise<CurvePredictResponse> => {
   const response = await axios.post<CurvePredictResponse>(`${API_BASE}/predict/curve`, {
     file_id: fileId,
     sheet_name: sheetName,
+    experiment_id: curveType,
+    target_name: curveType,
     curve_type: curveType,
     param_val: paramVal,
+    param_vals: paramVals,
   });
   return response.data;
 };
