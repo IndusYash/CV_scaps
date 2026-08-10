@@ -89,32 +89,41 @@ def _identify_trace_cols(
     region: CandidateRegion,
     axis_col: int,
     header_row: Optional[int],
+    bag: Optional[EvidenceBag] = None,
 ) -> List[int]:
     """
     Return all data columns (non-axis, non-empty, numeric-dominant).
 
-    Pulls from repeated_col_patterns if available, otherwise falls back
-    to inspecting columns_info.
+    Pulls from RepetitionProbe's verified y_col_indices if available as
+    authoritative trace-column evidence.  Unions with non-axis columns in
+    columns_info with numeric_density >= 0.50 to preserve truncated traces.
     """
-    # Try repeated column patterns first
-    if region.repeated_col_patterns:
-        trace_cols: List[int] = []
-        for pat in region.repeated_col_patterns:
-            for c in range(pat.start_col, pat.end_col + 1):
-                if c != axis_col:
-                    trace_cols.append(c)
-        if trace_cols:
-            return sorted(set(trace_cols))
+    trace_cols: List[int] = []
 
-    # Fallback: every non-axis column with >= 50% numeric density
-    trace_cols = []
+    # 1. Use RepetitionProbe verified y_col_indices if available
+    if bag is not None:
+        for item in bag.filter_by_name("repeated_trace_group"):
+            if item.polarity == EvidencePolarity.POSITIVE and "y_col_indices" in item.value:
+                for c in item.value["y_col_indices"]:
+                    if c != axis_col and region.col_start <= c <= region.col_end:
+                        trace_cols.append(c)
+
+    # 2. Union with columns_info having numeric_density >= 0.50
     for col_info in region.columns_info:
         c = col_info.col_index
         if c == axis_col:
             continue
         if col_info.numeric_density >= 0.50:
             trace_cols.append(c)
-    return sorted(trace_cols)
+
+    # 3. Fallback: repeated_col_patterns
+    if not trace_cols and region.repeated_col_patterns:
+        for pat in region.repeated_col_patterns:
+            for c in range(pat.start_col, pat.end_col + 1):
+                if c != axis_col:
+                    trace_cols.append(c)
+
+    return sorted(set(trace_cols))
 
 
 def _extract_axis(
@@ -256,7 +265,7 @@ def extract_numeric_curve_grid(
 
     header_row = _identify_header_row(region)
     axis_col = _identify_axis_col(region, sheet, header_row)
-    trace_cols = _identify_trace_cols(region, axis_col, header_row)
+    trace_cols = _identify_trace_cols(region, axis_col, header_row, interpretation.evidence_bag)
 
     axis = _extract_axis(
         sheet, region, axis_col, header_row, axis_concept, axis_unit

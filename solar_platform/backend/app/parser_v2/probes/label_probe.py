@@ -70,13 +70,25 @@ CONCEPT_RULES: List[Dict[str, Any]] = [
     {"keywords": ["j_mpp"], "concept": "J_MPP", "type": "scalar_metric", "unit": "mA/cm^2", "base_score": 0.90},
 
     # Parameter concepts
-    {"keywords": ["defect density", "idd", "nt="], "concept": "Defect_Density", "type": "parameter", "unit": "cm^-3", "base_score": 0.90},
-    {"keywords": ["acceptor", "na="], "concept": "Acceptor_Density", "type": "parameter", "unit": "cm^-3", "base_score": 0.90},
-    {"keywords": ["donor", "nd="], "concept": "Donor_Density", "type": "parameter", "unit": "cm^-3", "base_score": 0.90},
-    {"keywords": ["rs=", "ohm/cm^2", "ohm.cm^2"], "concept": "Series_Resistance", "type": "parameter", "unit": "ohm.cm^2", "base_score": 0.85},
-    {"keywords": ["rsh="], "concept": "Shunt_Resistance", "type": "parameter", "unit": "ohm.cm^2", "base_score": 0.85},
+    {"keywords": ["defect density", "idd", "nt=", "nt", "n_t"], "concept": "Defect_Density", "type": "parameter", "unit": "cm^-3", "base_score": 0.90},
+    {"keywords": ["acceptor density", "acceptor", "na=", "na", "n_a"], "concept": "Acceptor_Density", "type": "parameter", "unit": "cm^-3", "base_score": 0.90},
+    {"keywords": ["donor density", "donor", "nd=", "nd", "n_d"], "concept": "Donor_Density", "type": "parameter", "unit": "cm^-3", "base_score": 0.90},
+    {"keywords": ["series resistance", "series", "rs=", "rs", "r_s", "ohm/cm^2", "ohm.cm^2"], "concept": "Series_Resistance", "type": "parameter", "unit": "ohm.cm^2", "base_score": 0.85},
+    {"keywords": ["shunt resistance", "shunt", "rsh=", "rsh", "r_sh"], "concept": "Shunt_Resistance", "type": "parameter", "unit": "ohm.cm^2", "base_score": 0.85},
     {"keywords": ["interface density", "sns2/ps", "ps/zn3p2"], "concept": "Interface_Density", "type": "parameter", "unit": "cm^-2", "base_score": 0.90},
 ]
+
+
+def _matches_keyword(kw: str, t_lower: str) -> bool:
+    """
+    Controlled keyword matching helper.
+    For short bare aliases ('rs', 'rsh', 'na', 'nd', 'nt'), enforces exact word boundary.
+    For longer phrases or tokens containing symbols ('rsh=', 'v(v)'), uses substring or exact match.
+    """
+    if kw in ("rs", "rsh", "na", "nd", "nt", "r_s", "r_sh", "n_a", "n_d", "n_t", "ff", "voc", "jsc", "pce", "eta"):
+        pattern = r"\b" + re.escape(kw) + r"\b"
+        return bool(re.search(pattern, t_lower))
+    return kw in t_lower
 
 
 def match_text_to_concepts(text: str, source: str, cell_ref: Optional[CellRef]) -> List[CandidateConcept]:
@@ -89,7 +101,7 @@ def match_text_to_concepts(text: str, source: str, cell_ref: Optional[CellRef]) 
 
     for rule in CONCEPT_RULES:
         for kw in rule["keywords"]:
-            if kw in t_lower:
+            if _matches_keyword(kw, t_lower):
                 matches.append(CandidateConcept(
                     concept_name=rule["concept"],
                     concept_type=rule["type"],

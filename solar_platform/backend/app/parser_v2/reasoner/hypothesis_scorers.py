@@ -137,9 +137,15 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
 
     param_items = bag.filter_by_name("candidate_parameter_expressions")
     has_param_expr = any(item.polarity == EvidencePolarity.POSITIVE for item in param_items)
+    has_monotonic_col = any(item.polarity == EvidencePolarity.POSITIVE for item in mono_items)
 
-    # 2-column parameter vs scalar metric summary table (e.g. thickness vs Jsc) -> penalize CurveGrid
-    is_scalar_table_shape = (scalar_metric_count >= 1 and (has_param_expr or param_concept_count >= 1) and region.n_cols <= 3)
+    # 2-column/3-column parameter vs scalar metric summary table (e.g. thickness/Rsh vs Jsc) -> penalize CurveGrid
+    is_scalar_table_shape = (
+        scalar_metric_count >= 1
+        and (has_param_expr or param_concept_count >= 1 or has_monotonic_col)
+        and region.n_cols <= 3
+        and region.n_rows <= 15
+    )
     if scalar_metric_count >= 3 or is_scalar_table_shape:
         score -= 0.45
         contradicting.append("Contains scalar metric headers with parameter sweep — likely a ScalarSweepTable (-0.45).")
@@ -248,8 +254,15 @@ def score_scalar_sweep_table(bag: EvidenceBag, region: CandidateRegion) -> Hypot
                 if c in ("Thickness", "Temperature", "Defect_Density", "Acceptor_Density", "Donor_Density", "Series_Resistance", "Shunt_Resistance"):
                     param_concepts.append(c)
 
+    mono_items = bag.filter_by_name("axis_monotonicity")
+    has_monotonic_col = any(item.polarity == EvidencePolarity.POSITIVE for item in mono_items)
+
     param_items = bag.filter_by_name("candidate_parameter_expressions")
-    has_param_expr = any(item.polarity == EvidencePolarity.POSITIVE for item in param_items) or len(param_concepts) >= 1
+    has_param_expr = (
+        any(item.polarity == EvidencePolarity.POSITIVE for item in param_items)
+        or len(param_concepts) >= 1
+        or has_monotonic_col
+    )
 
     unique_scalar_metrics = list(set(scalar_metrics))
     if len(unique_scalar_metrics) >= 2 or (len(unique_scalar_metrics) >= 1 and has_param_expr):
@@ -268,8 +281,7 @@ def score_scalar_sweep_table(bag: EvidenceBag, region: CandidateRegion) -> Hypot
         score += 0.25
         supporting.append("Col 0 / banner headers contain parameter sweep expressions/concepts (+0.25).")
 
-    mono_items = bag.filter_by_name("axis_monotonicity")
-    if any(item.polarity == EvidencePolarity.POSITIVE for item in mono_items):
+    if has_monotonic_col:
         # Monotonic parameter column
         score += 0.20
         supporting.append("Parameter column exhibits monotonic values (+0.20).")
