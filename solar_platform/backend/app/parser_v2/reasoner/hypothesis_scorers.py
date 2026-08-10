@@ -1,0 +1,350 @@
+"""
+parser_v2.reasoner.hypothesis_scorers
+------------------------------------
+Pure evidence-based scoring functions for the three approved generic structural
+hypotheses (NumericCurveGrid, ScalarSweepTable, CategoryTable) and scientific label layering.
+
+Rules:
+  - All evidence items from EvidenceBag are evaluated together with positive and negative weights.
+  - No single if/elif rule determines the score.
+  - Rule 7A: "No parameter found" does NOT penalize generic NumericCurveGrid structure.
+  - Rule 7B: Single-trace NumericCurveGrid is fully valid.
+  - Rule 7C: Plain numeric headers require contextual & structural support.
+  - Rule 7D: Sheet name is weak evidence (+0.05 bonus max; never overrides region evidence).
+  - Rule 7E: Structure and scientific semantics are scored separately, then reconciled.
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional, Tuple
+
+from app.parser_v2.probes.evidence import CellRef, EvidenceBag, EvidencePolarity
+from app.parser_v2.reasoner.hypothesis import (
+    HypothesisCandidate,
+    StructuralHypothesis,
+)
+from app.parser_v2.scanner.region import CandidateRegion
+
+
+def _collect_provenance(bag: EvidenceBag) -> List[CellRef]:
+    refs: List[CellRef] = []
+    for item in bag.items:
+        for cell_ref in item.source_cells:
+            if cell_ref not in refs:
+                refs.append(cell_ref)
+                if len(refs) >= 15:
+                    break
+        if len(refs) >= 15:
+            break
+    return refs
+
+
+def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> HypothesisCandidate:
+    """
+    Score the generic NumericCurveGrid structural hypothesis and layer scientific interpretation.
+    """
+    score = 0.0
+    supporting: List[str] = []
+    contradicting: List[str] = []
+    missing: List[str] = []
+
+    # 1. Monotonic axis evidence
+    mono_items = bag.filter_by_name("axis_monotonicity")
+    for item in mono_items:
+        if item.polarity == EvidencePolarity.POSITIVE:
+            score += 0.35
+            direction = item.value.get("direction", "monotonic")
+            n_pts = item.value.get("n_points", 0)
+            supporting.append(f"Primary column forms monotonic {direction} grid with {n_pts} points (+0.35).")
+        elif item.polarity == EvidencePolarity.NEGATIVE:
+            score -= 0.20
+            contradicting.append("Primary axis column is numeric but not strictly monotonic (-0.20).")
+
+    if not mono_items:
+        missing.append("No axis monotonicity evidence found.")
+
+    # 2. String category column 0 contradiction
+    cat_items = bag.filter_by_name("axis_non_numeric_category")
+    if cat_items:
+        score -= 0.60
+        contradicting.append("Column 0 consists of string category labels, not a numeric grid (-0.60).")
+
+    # 3. Numeric density
+    num_dens_items = bag.filter_by_name("numeric_density_high")
+    if any(item.polarity == EvidencePolarity.POSITIVE for item in num_dens_items):
+        score += 0.25
+        supporting.append(f"Region has high numeric density {region.numeric_density:.1%} (+0.25).")
+
+    mixed_dens_items = bag.filter_by_name("numeric_density_low")
+    if any(item.polarity == EvidencePolarity.NEGATIVE for item in mixed_dens_items):
+        score -= 0.40
+        contradicting.append(f"Region has low numeric density {region.numeric_density:.1%} (-0.40).")
+
+    # 4. Trace repetition & trace count
+    rep_items = bag.filter_by_name("repeated_trace_group")
+    for item in rep_items:
+        if item.polarity == EvidencePolarity.POSITIVE:
+            t_cnt = item.value.get("trace_count", 0)
+            if t_cnt > 1:
+                score += 0.25
+                supporting.append(f"Discovered group of {t_cnt} numeric trace columns (+0.25).")
+            elif t_cnt == 1:
+                # Rule 7B: Single-trace NumericCurveGrid is fully valid!
+                score += 0.20
+                supporting.append("Single-trace numeric grid detected — valid device characterization curve (+0.20).")
+        elif item.polarity == EvidencePolarity.NEGATIVE:
+            # Rule 7A: "No parameter / trace group" does NOT heavily penalize generic curve grid
+            score -= 0.10
+            contradicting.append("No repeated numeric trace columns discovered (-0.10).")
+
+    # 5. Scalar metrics contradiction (looks like ScalarSweepTable instead if 2-col parameter summary)
+    lbl_items = bag.filter_by_name("candidate_label_concepts")
+    scalar_metric_count = 0
+    param_concept_count = 0
+    distinct_concepts: List[str] = []
+    if lbl_items:
+        for item in lbl_items:
+            concepts = item.value.get("distinct_concepts", [])
+            distinct_concepts.extend(concepts)
+            for c in concepts:
+                if c in ("Voc", "FF", "PCE", "V_MPP", "J_MPP", "Jsc"):
+                    scalar_metric_count += 1
+                if c in ("Thickness", "Temperature", "Defect_Density", "Acceptor_Density", "Donor_Density", "Series_Resistance", "Shunt_Resistance"):
+                    param_concept_count += 1
+
+    param_items = bag.filter_by_name("candidate_parameter_expressions")
+    has_param_expr = any(item.polarity == EvidencePolarity.POSITIVE for item in param_items)
+
+    # 2-column parameter vs scalar metric summary table (e.g. thickness vs Jsc) -> penalize CurveGrid
+    is_scalar_table_shape = (scalar_metric_count >= 1 and (has_param_expr or param_concept_count >= 1) and region.n_cols <= 3)
+    if scalar_metric_count >= 3 or is_scalar_table_shape:
+        score -= 0.45
+        contradicting.append("Contains scalar metric headers with parameter sweep — likely a ScalarSweepTable (-0.45).")
+
+    # 6. Sheet name weak contextual evidence (Rule 7D)
+    sheet_name_lower = region.sheet_name.lower()
+    if any(k in sheet_name_lower for k in ("etl", "pvk", "htl", "temperature", "defect", "interface", "rsh", "rs", "optimized")):
+        score += 0.05
+        supporting.append(f"Sheet name '{region.sheet_name}' weakly supports numeric curve grid (+0.05).")
+
+    # Clamp score to [0.0, 1.0]
+    final_score = max(0.0, min(1.0, score))
+
+    # Layered scientific interpretation (Rule 3 & 7E)
+    scientific_label: Optional[str] = None
+    axis_concept: Optional[str] = None
+    target_concept: Optional[str] = None
+
+    if "Position" in distinct_concepts or any("x(um)" in t.lower() for t in region.raw_banner_texts + region.raw_header_texts):
+        # Sheet1 / Device profile rule (Rule 7E & 9)
+        axis_concept = "Position"
+        scientific_label = "UNKNOWN"
+        final_score = max(0.0, final_score - 0.65)
+        contradicting.append("Position axis 'x(um)' detected — not a standard curve experiment (-0.65).")
+    else:
+        if "Voltage" in distinct_concepts:
+            axis_concept = "Voltage"
+        elif "Wavelength" in distinct_concepts:
+            axis_concept = "Wavelength"
+
+        # Detectivity takes precedence over generic Current/Jsc
+        if "Detectivity" in distinct_concepts:
+            target_concept = "Detectivity"
+            scientific_label = "DETECTIVITY"
+        elif "Responsivity" in distinct_concepts:
+            target_concept = "Responsivity"
+            scientific_label = "RESPONSIVITY"
+        elif "QE" in distinct_concepts:
+            target_concept = "QE"
+            scientific_label = "QE"
+        elif "Current" in distinct_concepts or "Jsc" in distinct_concepts:
+            target_concept = "Current"
+            scientific_label = "JV"
+
+        if not scientific_label and final_score >= 0.50:
+            if axis_concept == "Voltage":
+                scientific_label = "JV"
+            elif axis_concept == "Wavelength":
+                scientific_label = "QE"
+            else:
+                scientific_label = "UNKNOWN"
+
+    rationale = (
+        f"NumericCurveGrid score: {final_score:.2f} (Scientific Label: {scientific_label}, "
+        f"Axis: {axis_concept}, Target: {target_concept})."
+    )
+
+    return HypothesisCandidate(
+        structure=StructuralHypothesis.NUMERIC_CURVE_GRID,
+        scientific_label=scientific_label,
+        axis_concept=axis_concept,
+        target_concept=target_concept,
+        score=final_score,
+        supporting_evidence=supporting,
+        contradicting_evidence=contradicting,
+        missing_evidence=missing,
+        provenance_cells=_collect_provenance(bag),
+        rationale=rationale,
+    )
+
+
+def score_scalar_sweep_table(bag: EvidenceBag, region: CandidateRegion) -> HypothesisCandidate:
+    """
+    Score the generic ScalarSweepTable structural hypothesis.
+    """
+    score = 0.0
+    supporting: List[str] = []
+    contradicting: List[str] = []
+    missing: List[str] = []
+
+    # 1. String category column 0 contradiction
+    cat_items = bag.filter_by_name("axis_non_numeric_category")
+    if cat_items:
+        score -= 0.35
+        contradicting.append("Column 0 consists of string category labels, not a numeric parameter sweep (-0.35).")
+
+    # 2. Scalar PV metric headers & Parameter concept headers
+    lbl_items = bag.filter_by_name("candidate_label_concepts")
+    scalar_metrics: List[str] = []
+    param_concepts: List[str] = []
+    distinct_concepts: List[str] = []
+
+    if lbl_items:
+        for item in lbl_items:
+            concepts = item.value.get("distinct_concepts", [])
+            distinct_concepts.extend(concepts)
+            for c in concepts:
+                if c in ("Jsc", "Voc", "FF", "PCE", "V_MPP", "J_MPP", "Responsivity", "QE"):
+                    scalar_metrics.append(c)
+                if c in ("Thickness", "Temperature", "Defect_Density", "Acceptor_Density", "Donor_Density", "Series_Resistance", "Shunt_Resistance"):
+                    param_concepts.append(c)
+
+    param_items = bag.filter_by_name("candidate_parameter_expressions")
+    has_param_expr = any(item.polarity == EvidencePolarity.POSITIVE for item in param_items) or len(param_concepts) >= 1
+
+    unique_scalar_metrics = list(set(scalar_metrics))
+    if len(unique_scalar_metrics) >= 2 or (len(unique_scalar_metrics) >= 1 and has_param_expr):
+        score += 0.50
+        supporting.append(f"Headers match {len(unique_scalar_metrics)} scalar metrics + parameter sweep (+0.50).")
+    elif len(unique_scalar_metrics) == 1:
+        score += 0.25
+        supporting.append(f"Headers match 1 scalar metric: {unique_scalar_metrics[0]} (+0.25).")
+    else:
+        score -= 0.40
+        contradicting.append("No scalar PV metric concepts detected in headers (-0.40).")
+        missing.append("Scalar metric headers (Voc, Jsc, FF, PCE).")
+
+    # 3. Col 0 parameter axis
+    if has_param_expr:
+        score += 0.25
+        supporting.append("Col 0 / banner headers contain parameter sweep expressions/concepts (+0.25).")
+
+    mono_items = bag.filter_by_name("axis_monotonicity")
+    if any(item.polarity == EvidencePolarity.POSITIVE for item in mono_items):
+        # Monotonic parameter column
+        score += 0.20
+        supporting.append("Parameter column exhibits monotonic values (+0.20).")
+
+    # 4. Contradiction: Spectral/Voltage curve grid (e.g. 15+ data points per column with voltage/wavelength axis)
+    has_curve_axis = ("Voltage" in distinct_concepts or "Wavelength" in distinct_concepts or
+                      any(k in t.lower() for t in region.raw_header_texts + region.raw_banner_texts for k in ("v(v)", "v (v)", "lambda", "nm")))
+
+    if region.n_rows >= 15 and has_curve_axis:
+        score -= 0.55
+        contradicting.append(f"Region has {region.n_rows} rows with spectral/voltage grid headers — likely a NumericCurveGrid (-0.55).")
+
+    # 5. Sheet name weak evidence (Rule 7D)
+    sheet_name_lower = region.sheet_name.lower()
+    if any(k in sheet_name_lower for k in ("na", "t (k)", "temperature", "rs", "rsh", "defect")):
+        score += 0.05
+        supporting.append(f"Sheet name '{region.sheet_name}' weakly supports scalar sweep table (+0.05).")
+
+    final_score = max(0.0, min(1.0, score))
+    scientific_label = "SCALAR_SWEEP" if final_score >= 0.40 else None
+
+    rationale = f"ScalarSweepTable score: {final_score:.2f} (Metrics: {unique_scalar_metrics})."
+
+    return HypothesisCandidate(
+        structure=StructuralHypothesis.SCALAR_SWEEP_TABLE,
+        scientific_label=scientific_label,
+        axis_concept="Parameter",
+        target_concept="Scalar_Metrics",
+        score=final_score,
+        supporting_evidence=supporting,
+        contradicting_evidence=contradicting,
+        missing_evidence=missing,
+        provenance_cells=_collect_provenance(bag),
+        rationale=rationale,
+    )
+
+
+def score_category_table(bag: EvidenceBag, region: CandidateRegion) -> HypothesisCandidate:
+    """
+    Score the generic CategoryTable structural hypothesis.
+    """
+    score = 0.0
+    supporting: List[str] = []
+    contradicting: List[str] = []
+    missing: List[str] = []
+
+    # 1. Non-numeric category column 0
+    cat_items = bag.filter_by_name("axis_non_numeric_category")
+    if cat_items:
+        score += 0.65
+        hdr = cat_items[0].value.get("header_text", "")
+        supporting.append(f"Column 0 consists of string category labels (e.g. '{hdr}') (+0.65).")
+    else:
+        # Contradiction: Col 0 is monotonic numeric
+        mono_items = bag.filter_by_name("axis_monotonicity")
+        if any(item.polarity == EvidencePolarity.POSITIVE for item in mono_items):
+            score -= 0.60
+            contradicting.append("Column 0 is a strictly monotonic numeric grid, not string categories (-0.60).")
+
+    # 2. Interface / Layer comparison tokens in banners
+    lbl_items = bag.filter_by_name("candidate_label_concepts")
+    if lbl_items:
+        for item in lbl_items:
+            concepts = item.value.get("distinct_concepts", [])
+            if "Interface_Density" in concepts:
+                score += 0.20
+                supporting.append("Header contains interface comparison tokens (+0.20).")
+
+    # 3. Numeric curve contradiction
+    if region.numeric_density >= 0.85 and region.n_rows >= 20:
+        score -= 0.40
+        contradicting.append("Region is a dense numeric grid with >=20 rows (-0.40).")
+
+    final_score = max(0.0, min(1.0, score))
+    scientific_label = "CATEGORY" if final_score >= 0.40 else None
+
+    rationale = f"CategoryTable score: {final_score:.2f}."
+
+    return HypothesisCandidate(
+        structure=StructuralHypothesis.CATEGORY_TABLE,
+        scientific_label=scientific_label,
+        axis_concept="Category",
+        target_concept="Comparative_Values",
+        score=final_score,
+        supporting_evidence=supporting,
+        contradicting_evidence=contradicting,
+        missing_evidence=missing,
+        provenance_cells=_collect_provenance(bag),
+        rationale=rationale,
+    )
+
+
+def score_unknown(bag: EvidenceBag, region: CandidateRegion) -> HypothesisCandidate:
+    """
+    Fallback Unknown hypothesis. Always scored as baseline.
+    """
+    return HypothesisCandidate(
+        structure=StructuralHypothesis.UNKNOWN,
+        scientific_label="UNKNOWN",
+        axis_concept=None,
+        target_concept=None,
+        score=0.20,
+        supporting_evidence=["Fallback baseline structural hypothesis."],
+        contradicting_evidence=[],
+        missing_evidence=[],
+        provenance_cells=_collect_provenance(bag),
+        rationale="Unknown fallback structural hypothesis.",
+    )
