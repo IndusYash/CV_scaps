@@ -125,14 +125,14 @@ class TestReasonerSynthetic(unittest.TestCase):
         self.assertNotEqual(interp.winner.scientific_label, "JV")
 
     def test_full_candidate_ranking_preserved(self):
-        """Rule 5: Every RegionInterpretation must contain all 4 ranked candidates."""
+        """Rule 5: Every RegionInterpretation must contain all 5 ranked candidates."""
         bytes_in = _create_synthetic_excel_bytes("TestSheet", "curve")
         raw_wb = read_workbook("test.xlsx", bytes_in)
         sheet = raw_wb.get_sheet("TestSheet")
         regions = scan_sheet(sheet)
 
         interp = classify_region(regions[0], sheet)
-        self.assertEqual(len(interp.all_candidates), 4)
+        self.assertEqual(len(interp.all_candidates), 5)
         # Verify descending score order
         scores = [c.score for c in interp.all_candidates]
         self.assertEqual(scores, sorted(scores, reverse=True))
