@@ -148,7 +148,7 @@ def _detect_interleaved_groups(
 
             # If pairs already has a primary x_col, subsequent x_cols must be axis concept OR have similar numeric range
             if pairs:
-                is_axis_hdr = any(k in hdr_str for k in ["v(v)", "v (v)", "v[v]", "voltage", "lambda", "wavelength", "nm", "x(um)", "position"])
+                is_axis_hdr = any(k in hdr_str for k in ["v(v)", "v (v)", "v[v]", "voltage", "lambda", "wavelength", "x(um)", "position"])
                 if not is_axis_hdr:
                     primary_x_info = next(c for c in region.columns_info if c.col_index == pairs[0][0])
                     if primary_x_info.value_range and col_info.value_range:
