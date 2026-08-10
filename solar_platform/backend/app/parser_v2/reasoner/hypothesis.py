@@ -66,10 +66,11 @@ class AcceptanceState(str, Enum):
 
 
 class StructuralHypothesis(str, Enum):
-    """The three approved generic structural forms + Unknown."""
+    """The approved generic structural forms + Unknown."""
     NUMERIC_CURVE_GRID = "NumericCurveGrid"
     SCALAR_SWEEP_TABLE = "ScalarSweepTable"
     CATEGORY_TABLE     = "CategoryTable"
+    STACKED_CURVE_BLOCKS = "StackedCurveBlocks"
     UNKNOWN            = "Unknown"
 
 

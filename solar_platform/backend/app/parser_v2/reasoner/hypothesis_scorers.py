@@ -120,7 +120,7 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
             score -= 0.10
             contradicting.append("No repeated numeric trace columns discovered (-0.10).")
 
-    # 5. Scalar metrics contradiction (looks like ScalarSweepTable instead if 2-col parameter summary)
+    # 5. Scalar metrics & Stacked curve blocks contradiction
     lbl_items = bag.filter_by_name("candidate_label_concepts")
     scalar_metric_count = 0
     param_concept_count = 0
@@ -138,6 +138,13 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
     param_items = bag.filter_by_name("candidate_parameter_expressions")
     has_param_expr = any(item.polarity == EvidencePolarity.POSITIVE for item in param_items)
     has_monotonic_col = any(item.polarity == EvidencePolarity.POSITIVE for item in mono_items)
+
+    stacked_items = bag.filter_by_name("stacked_axis_reset_sequence")
+    has_stacked_blocks = any(item.polarity == EvidencePolarity.POSITIVE and item.value.get("n_blocks", 0) >= 2 for item in stacked_items)
+
+    if has_stacked_blocks:
+        score -= 0.45
+        contradicting.append("Region consists of vertically stacked sub-blocks — better fit for StackedCurveBlocks (-0.45).")
 
     # 2-column/3-column parameter vs scalar metric summary table (e.g. thickness/Rsh vs Jsc) -> penalize CurveGrid
     is_scalar_table_shape = (
@@ -375,6 +382,81 @@ def score_category_table(bag: EvidenceBag, region: CandidateRegion) -> Hypothesi
         scientific_label=scientific_label,
         axis_concept="Category",
         target_concept="Comparative_Values",
+        score=final_score,
+        supporting_evidence=supporting,
+        contradicting_evidence=contradicting,
+        missing_evidence=missing,
+        provenance_cells=_collect_provenance(bag),
+        rationale=rationale,
+    )
+
+
+def score_stacked_curve_blocks(bag: EvidenceBag, region: CandidateRegion) -> HypothesisCandidate:
+    """
+    Pure evidence-based scoring function for the generic StackedCurveBlocks hypothesis.
+
+    Evaluates:
+      - stacked_axis_reset_sequence evidence from AxisProbe (n_blocks >= 2)
+      - structural uniformity of sub-block lengths
+      - inter-block banner parameters (helpful but not mandatory)
+      - layered scientific interpretation (QE, JV, RESPONSIVITY, etc.)
+    """
+    score = 0.0
+    supporting: List[str] = []
+    contradicting: List[str] = []
+    missing: List[str] = []
+
+    stacked_items = bag.filter_by_name("stacked_axis_reset_sequence")
+    has_stacked = False
+    n_blocks = 0
+
+    for item in stacked_items:
+        if item.polarity == EvidencePolarity.POSITIVE:
+            has_stacked = True
+            n_blocks = item.value.get("n_blocks", 0)
+            score += 0.55
+            supporting.append(f"AxisProbe detected {n_blocks} stacked monotonic x-axis blocks (+0.55).")
+            if n_blocks >= 5:
+                score += 0.20
+                supporting.append(f"Large stacked series of {n_blocks} uniform blocks (+0.20).")
+
+    if not has_stacked or n_blocks < 2:
+        score -= 0.60
+        contradicting.append("No repeated monotonic x-axis reset sequence detected (-0.60).")
+
+    # Parameter / banner evidence (helpful but NOT mandatory)
+    param_items = bag.filter_by_name("candidate_parameter_expressions")
+    if any(item.polarity == EvidencePolarity.POSITIVE for item in param_items):
+        score += 0.10
+        supporting.append("Inter-block banner parameters detected (+0.10).")
+
+    # Layered scientific interpretation
+    lbl_items = bag.filter_by_name("candidate_label_concepts")
+    axis_concept = "Wavelength"
+    target_concept = "QE"
+    sci_label = "UNKNOWN"
+
+    if lbl_items:
+        for item in lbl_items:
+            concepts = item.value.get("distinct_concepts", [])
+            for c in concepts:
+                if c in ("QE", "Current", "Responsivity", "Detectivity", "Absorption"):
+                    sci_label = c.upper() if c != "Current" else "JV"
+                    score += 0.10
+                    supporting.append(f"Headers match scientific concept {c} (+0.10).")
+
+    final_score = max(0.0, min(1.0, score))
+
+    rationale = (
+        f"StackedCurveBlocks evidence-support score: {final_score:.2f} ({n_blocks} stacked blocks). "
+        f"Score is not a probability."
+    )
+
+    return HypothesisCandidate(
+        structure=StructuralHypothesis.STACKED_CURVE_BLOCKS,
+        scientific_label=sci_label if final_score >= 0.40 else "UNKNOWN",
+        axis_concept=axis_concept,
+        target_concept=target_concept,
         score=final_score,
         supporting_evidence=supporting,
         contradicting_evidence=contradicting,

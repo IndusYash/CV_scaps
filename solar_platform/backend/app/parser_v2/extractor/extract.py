@@ -32,6 +32,7 @@ from app.parser_v2.extractor.ir import (
 from app.parser_v2.extractor.category_table_extractor import extract_category_table
 from app.parser_v2.extractor.numeric_curve_grid_extractor import extract_numeric_curve_grid
 from app.parser_v2.extractor.scalar_sweep_table_extractor import extract_scalar_sweep_table
+from app.parser_v2.extractor.stacked_curve_blocks_extractor import extract_stacked_curve_blocks
 from app.parser_v2.probes.evidence import CellRef
 from app.parser_v2.reader.raw_model import RawSheet
 from app.parser_v2.reasoner.hypothesis import (
@@ -122,29 +123,31 @@ def extract_region(
     acceptance_state = interpretation.acceptance_state
 
     # Determine ambiguity
-    is_ambiguous = acceptance_state != AcceptanceState.ACCEPTED
-    if acceptance_state == AcceptanceState.UNCERTAIN:
-        ambiguity_note = (
-            f"Interpretation is UNCERTAIN (evidence-support score gap = "
-            f"{interpretation.winner_runner_up_gap:.2f}).  "
-            f"Winner: {winner.structure.value if winner else 'None'}.  "
-            f"Runner-up: {interpretation.runner_up.structure.value if interpretation.runner_up else 'None'}."
-        )
-    elif acceptance_state == AcceptanceState.UNRESOLVED:
-        ambiguity_note = (
-            f"Interpretation is UNRESOLVED (evidence-support score gap = "
-            f"{interpretation.winner_runner_up_gap:.2f}).  "
-            f"Best available structural hypothesis: "
-            f"{winner.structure.value if winner else 'None'}.  "
-            "Extraction attempted; data may be incomplete."
-        )
-    else:
-        ambiguity_note = ""
+    is_ambiguous = (acceptance_state != AcceptanceState.ACCEPTED)
 
-    # Always populate raw verbatim data
+    ambiguity_note: Optional[str] = None
+    if is_ambiguous:
+        ambiguity_note = (
+            f"Region interpretation state is {acceptance_state.value}. "
+            f"Winner evidence-support score={winner.score if winner else 0.0:.2f}, "
+            f"gap={interpretation.winner_runner_up_gap:.2f}. "
+            f"Raw cell grid is fully preserved."
+        )
+
     raw = _build_raw(sheet, region)
 
-    # Initialise output containers
+    if winner is not None and winner.structure == StructuralHypothesis.STACKED_CURVE_BLOCKS:
+        blocks = extract_stacked_curve_blocks(sheet, region, interpretation)
+        if blocks:
+            for b in blocks:
+                b.raw = raw
+                b.winner_evidence_score = winner.score
+                b.winner_runner_up_gap = interpretation.winner_runner_up_gap
+                b.all_hypothesis_scores = _build_hypothesis_scores(interpretation)
+                b.is_ambiguous = is_ambiguous
+                b.ambiguity_note = ambiguity_note
+            return blocks
+
     axis: Optional[AxisData] = None
     traces: List[TraceData] = []
     scalar_rows: List[ScalarRow] = []
@@ -164,17 +167,14 @@ def extract_region(
             category_rows = extract_category_table(sheet, region, interpretation)
 
         elif structure == StructuralHypothesis.UNKNOWN:
-            # UNRESOLVED: raw is populated; extraction results are empty
             ambiguity_note = (
-                "Structural hypothesis is Unknown.  "
+                "Structural hypothesis is Unknown. "
                 "Raw data preserved; no typed extraction performed."
             )
 
-    return ExtractedDataset(
+    return [ExtractedDataset(
         region_id=region.region_id,
         sheet_name=region.sheet_name,
-
-        # Interpretation metadata — taken directly from Reasoner; not re-derived
         structure_type=winner.structure.value if winner else StructuralHypothesis.UNKNOWN.value,
         scientific_label=winner.scientific_label if winner else None,
         axis_concept=winner.axis_concept if winner else None,
@@ -182,24 +182,16 @@ def extract_region(
         acceptance_state=acceptance_state.value,
         winner_evidence_score=winner.score if winner else 0.0,
         winner_runner_up_gap=interpretation.winner_runner_up_gap,
-
-        # Extracted typed data
         axis=axis,
         traces=traces,
         scalar_rows=scalar_rows,
         category_rows=category_rows,
-
-        # Always-populated raw data
         raw=raw,
-
-        # Provenance and full hypothesis ranking
         provenance_cells=_collect_provenance(interpretation),
         all_hypothesis_scores=_build_hypothesis_scores(interpretation),
-
-        # Ambiguity visibility
         is_ambiguous=is_ambiguous,
         ambiguity_note=ambiguity_note,
-    )
+    )]
 
 
 def extract_sheet_regions(
@@ -209,14 +201,12 @@ def extract_sheet_regions(
 ) -> List[ExtractedDataset]:
     """
     Extract all regions from a sheet given their interpretations.
-
-    Regions and interpretations must be in the same order.
-    Returns one ExtractedDataset per region.
     """
     assert len(regions) == len(interpretations), (
         f"Mismatch: {len(regions)} regions vs {len(interpretations)} interpretations"
     )
-    return [
-        extract_region(sheet, region, interp)
-        for region, interp in zip(regions, interpretations)
-    ]
+    all_datasets: List[ExtractedDataset] = []
+    for region, interp in zip(regions, interpretations):
+        extracted = extract_region(sheet, region, interp)
+        all_datasets.extend(extracted)
+    return all_datasets

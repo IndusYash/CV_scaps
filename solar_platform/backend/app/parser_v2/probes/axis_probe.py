@@ -146,4 +146,103 @@ def probe_axis(region: CandidateRegion, sheet: RawSheet) -> List[EvidenceItem]:
                 source_cells=source_cells,
             ))
 
+        # Check for generic stacked axis reset sequences (multi-block stacked curve grids)
+        stacked_item = _detect_stacked_axis_resets(sheet, region, col_idx)
+        if stacked_item is not None:
+            items.append(stacked_item)
+
     return items
+
+
+def _detect_stacked_axis_resets(
+    sheet: RawSheet,
+    region: CandidateRegion,
+    col_idx: int,
+) -> Optional[EvidenceItem]:
+    """
+    Detect generic stacked curve blocks from monotonic x-axis resets.
+
+    Requires multi-signal structural evidence:
+      - At least 2 distinct monotonic x-axis segments
+      - Each segment must have a valid monotonic sequence before and after the reset (len >= 3)
+      - Segment lengths must exhibit structural consistency across blocks
+    """
+    numeric_rows: List[Tuple[int, float]] = []
+    for r in range(region.row_start, region.row_end + 1):
+        cell = sheet.get(r, col_idx)
+        if cell and cell.data_type in (RawCellType.NUMERIC, RawCellType.FORMULA) and isinstance(cell.raw_value, (int, float)):
+            numeric_rows.append((r, float(cell.raw_value)))
+
+    if len(numeric_rows) < 6:
+        return None
+
+    # Partition numeric rows into monotonic segments based on resets
+    segments: List[List[Tuple[int, float]]] = []
+    curr_seg: List[Tuple[int, float]] = [numeric_rows[0]]
+
+    for i in range(1, len(numeric_rows)):
+        r_prev, v_prev = numeric_rows[i - 1]
+        r_curr, v_curr = numeric_rows[i]
+
+        # Reset condition: value resets from max back to min (increasing grid) or min back to max (decreasing grid)
+        # Also check row gap (> 35 rows difference indicates text banner between blocks)
+        is_val_reset = (v_curr < v_prev if numeric_rows[0][1] <= numeric_rows[-1][1] else v_curr > v_prev)
+        is_row_gap = (r_curr - r_prev > 25)
+
+        if is_val_reset or is_row_gap:
+            if len(curr_seg) >= 3:
+                segments.append(curr_seg)
+            curr_seg = [(r_curr, v_curr)]
+        else:
+            curr_seg.append((r_curr, v_curr))
+
+    if len(curr_seg) >= 3:
+        segments.append(curr_seg)
+
+    if len(segments) < 2:
+        return None
+
+    # Verify structural consistency across segments:
+    # 1. Each segment must be strictly monotonic (len >= 3)
+    valid_blocks: List[Tuple[int, int]] = []
+    seg_lengths: List[int] = []
+
+    for seg in segments:
+        if len(seg) < 3:
+            continue
+        vals = [v for _, v in seg]
+        is_inc = all(vals[k] <= vals[k + 1] for k in range(len(vals) - 1))
+        is_dec = all(vals[k] >= vals[k + 1] for k in range(len(vals) - 1))
+        if is_inc or is_dec:
+            valid_blocks.append((seg[0][0], seg[-1][0]))
+            seg_lengths.append(len(seg))
+
+    if len(valid_blocks) < 2:
+        return None
+
+    # Structural consistency check: ratio of median length to min/max
+    median_len = sorted(seg_lengths)[len(seg_lengths) // 2]
+    # Filter out severely malformed blocks (< 20% of median length)
+    filtered_blocks = [b for b, l in zip(valid_blocks, seg_lengths) if l >= max(3, int(0.20 * median_len))]
+
+    if len(filtered_blocks) < 2:
+        return None
+
+    # Build provenance cell references for boundary resets
+    source_cells = [_make_cell_ref(sheet, b[0], col_idx) for b in filtered_blocks[:10]]
+
+    return EvidenceItem(
+        name="stacked_axis_reset_sequence",
+        probe_id=PROBE_ID,
+        polarity=EvidencePolarity.POSITIVE,
+        confidence=0.92,
+        value={
+            "col_index": col_idx,
+            "n_blocks": len(filtered_blocks),
+            "block_row_ranges": filtered_blocks,
+            "segment_lengths": [b[1] - b[0] + 1 for b in filtered_blocks],
+            "median_length": median_len,
+        },
+        rationale=f"Column {col_idx} contains {len(filtered_blocks)} repeated monotonic x-axis segments (median length {median_len} rows).",
+        source_cells=source_cells,
+    )

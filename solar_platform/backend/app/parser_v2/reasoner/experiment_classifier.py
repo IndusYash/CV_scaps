@@ -39,6 +39,7 @@ from app.parser_v2.reasoner.hypothesis_scorers import (
     score_category_table,
     score_numeric_curve_grid,
     score_scalar_sweep_table,
+    score_stacked_curve_blocks,
     score_unknown,
 )
 
@@ -73,7 +74,7 @@ def classify_region(
     The reasoner evaluates all three structural hypotheses (NumericCurveGrid,
     ScalarSweepTable, CategoryTable) and the Unknown fallback in parallel.
     It then ranks them by evidence-support score and determines an overall
-    AcceptanceState using the winner\'s score and the gap to the runner-up.
+    AcceptanceState using the winner's score and the gap to the runner-up.
 
     Concept separation
     ~~~~~~~~~~~~~~~~~~
@@ -101,6 +102,7 @@ def classify_region(
         score_numeric_curve_grid(bag, region),
         score_scalar_sweep_table(bag, region),
         score_category_table(bag, region),
+        score_stacked_curve_blocks(bag, region),
         score_unknown(bag, region),
     ]
 

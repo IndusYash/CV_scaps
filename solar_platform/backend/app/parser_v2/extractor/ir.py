@@ -182,6 +182,7 @@ class ExtractedDataset:
     acceptance_state: str          # interpretation.acceptance_state.value
     winner_evidence_score: float   # evidence-support score (NOT a probability)
     winner_runner_up_gap: float
+    parent_region_id: Optional[str] = field(default=None)
 
     # --- Extracted data (populated by structure-specific extractors) ---
     # NumericCurveGrid
