@@ -67,7 +67,32 @@ def classify_region(
     neighbor_bags: Optional[Dict[str, EvidenceBag]] = None,
 ) -> RegionInterpretation:
     """
-    Reason over an EvidenceBag for a CandidateRegion and produce a RegionInterpretation.
+    Reason over all collected evidence for a CandidateRegion and produce a
+    RegionInterpretation.
+
+    The reasoner evaluates all three structural hypotheses (NumericCurveGrid,
+    ScalarSweepTable, CategoryTable) and the Unknown fallback in parallel.
+    It then ranks them by evidence-support score and determines an overall
+    AcceptanceState using the winner\'s score and the gap to the runner-up.
+
+    Concept separation
+    ~~~~~~~~~~~~~~~~~~
+    The three output concepts are always set independently:
+
+    * ``winner.structure``        — the best structural hypothesis by evidence-support score.
+    * ``winner.scientific_label`` — the layered scientific interpretation (may be UNKNOWN).
+    * ``acceptance_state``        — confidence in the *overall* interpretation.
+
+    AcceptanceState semantics
+    ~~~~~~~~~~~~~~~~~~~~~~~~~
+    * ACCEPTED   — winner evidence-support score >= 0.75 and gap >= 0.20.
+    * UNCERTAIN  — winner evidence-support score >= 0.50 and gap >= 0.15.
+    * UNRESOLVED — winner evidence-support score < 0.50 or gap < 0.15.
+
+    UNRESOLVED means the *overall region interpretation* cannot be confirmed
+    with the available evidence.  The winner.structure is still set to the
+    best structural hypothesis found — UNRESOLVED does NOT mean that hypothesis
+    is wrong; it means the evidence was insufficient to confirm it.
     """
     bag = collect_evidence_bag(region, sheet)
 

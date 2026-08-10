@@ -1,17 +1,41 @@
 """
 parser_v2.reasoner.hypothesis_scorers
-------------------------------------
+--------------------------------------
 Pure evidence-based scoring functions for the three approved generic structural
-hypotheses (NumericCurveGrid, ScalarSweepTable, CategoryTable) and scientific label layering.
+hypotheses (NumericCurveGrid, ScalarSweepTable, CategoryTable) and scientific
+label layering.
+
+Score semantics
+~~~~~~~~~~~~~~~
+All scoring functions produce **evidence-support scores**, NOT probabilities or
+percentages.  Scores are accumulated as a sum of positive evidence contributions
+minus contradicting evidence penalties.
+
+* A score of 0.00 for a hypothesis means no positive scoring rule contributed
+  evidence for it.  It does NOT mean the hypothesis is deemed impossible.
+* A score of 1.00 means the maximum evidence-contribution ceiling was reached.
+* Scores are clamped to [0.0, 1.0] as an evidence-capacity bound, NOT as a
+  probability normalisation.
+
+Concept separation
+~~~~~~~~~~~~~~~~~~
+Each scorer evaluates ONE structural hypothesis (NumericCurveGrid,
+ScalarSweepTable, CategoryTable, or Unknown) and then *layers* a scientific
+interpretation (JV, QE, RESPONSIVITY, …) on top.  These two concepts are
+carried separately in HypothesisCandidate and must never be conflated.
+
+The AcceptanceState of the enclosing RegionInterpretation is determined *after*
+all scorers run and is not computed here.
 
 Rules:
-  - All evidence items from EvidenceBag are evaluated together with positive and negative weights.
-  - No single if/elif rule determines the score.
-  - Rule 7A: "No parameter found" does NOT penalize generic NumericCurveGrid structure.
+  - All evidence items from EvidenceBag are evaluated together with positive and
+    negative contributions.
+  - No single if/elif rule determines the score alone.
+  - Rule 7A: "No parameter found" does NOT penalize generic NumericCurveGrid.
   - Rule 7B: Single-trace NumericCurveGrid is fully valid.
   - Rule 7C: Plain numeric headers require contextual & structural support.
-  - Rule 7D: Sheet name is weak evidence (+0.05 bonus max; never overrides region evidence).
-  - Rule 7E: Structure and scientific semantics are scored separately, then reconciled.
+  - Rule 7D: Sheet name is weak evidence (+0.05 max; never overrides region evidence).
+  - Rule 7E: Structural score and scientific semantics are derived separately.
 """
 from __future__ import annotations
 
@@ -126,7 +150,9 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
         score += 0.05
         supporting.append(f"Sheet name '{region.sheet_name}' weakly supports numeric curve grid (+0.05).")
 
-    # Clamp score to [0.0, 1.0]
+    # Clamp to evidence-support bounds [0.0, 1.0].
+    # 0.0 = lower bound (no positive evidence; does NOT mean impossible).
+    # 1.0 = upper bound (maximum evidence-contribution ceiling; NOT a probability).
     final_score = max(0.0, min(1.0, score))
 
     # Layered scientific interpretation (Rule 3 & 7E)
@@ -168,9 +194,13 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
             else:
                 scientific_label = "UNKNOWN"
 
+    # Rationale: human-readable summary of structural evidence-support score
+    # and the separately-derived scientific interpretation.
     rationale = (
-        f"NumericCurveGrid score: {final_score:.2f} (Scientific Label: {scientific_label}, "
-        f"Axis: {axis_concept}, Target: {target_concept})."
+        f"NumericCurveGrid evidence-support score: {final_score:.2f} "
+        f"(Scientific interpretation: {scientific_label}, "
+        f"Axis: {axis_concept}, Target: {target_concept}). "
+        f"Score is not a probability."
     )
 
     return HypothesisCandidate(
@@ -258,10 +288,15 @@ def score_scalar_sweep_table(bag: EvidenceBag, region: CandidateRegion) -> Hypot
         score += 0.05
         supporting.append(f"Sheet name '{region.sheet_name}' weakly supports scalar sweep table (+0.05).")
 
+    # Clamp to evidence-support bounds [0.0, 1.0].
     final_score = max(0.0, min(1.0, score))
     scientific_label = "SCALAR_SWEEP" if final_score >= 0.40 else None
 
-    rationale = f"ScalarSweepTable score: {final_score:.2f} (Metrics: {unique_scalar_metrics})."
+    # Rationale: human-readable summary of structural evidence-support score.
+    rationale = (
+        f"ScalarSweepTable evidence-support score: {final_score:.2f} "
+        f"(Scalar metrics found: {unique_scalar_metrics}). Score is not a probability."
+    )
 
     return HypothesisCandidate(
         structure=StructuralHypothesis.SCALAR_SWEEP_TABLE,
@@ -313,10 +348,15 @@ def score_category_table(bag: EvidenceBag, region: CandidateRegion) -> Hypothesi
         score -= 0.40
         contradicting.append("Region is a dense numeric grid with >=20 rows (-0.40).")
 
+    # Clamp to evidence-support bounds [0.0, 1.0].
     final_score = max(0.0, min(1.0, score))
     scientific_label = "CATEGORY" if final_score >= 0.40 else None
 
-    rationale = f"CategoryTable score: {final_score:.2f}."
+    # Rationale: human-readable summary of structural evidence-support score.
+    rationale = (
+        f"CategoryTable evidence-support score: {final_score:.2f}. "
+        f"Score is not a probability."
+    )
 
     return HypothesisCandidate(
         structure=StructuralHypothesis.CATEGORY_TABLE,
@@ -334,17 +374,29 @@ def score_category_table(bag: EvidenceBag, region: CandidateRegion) -> Hypothesi
 
 def score_unknown(bag: EvidenceBag, region: CandidateRegion) -> HypothesisCandidate:
     """
-    Fallback Unknown hypothesis. Always scored as baseline.
+    Fallback Unknown structural hypothesis.  Always evaluated alongside the three
+    named structural hypotheses so the ranked candidate set is always complete.
+
+    The baseline evidence-support score of 0.20 is a minimum floor to prevent a
+    zero-score winner from being automatically selected.  It is NOT a 20%
+    probability that the region is truly unknown.
     """
     return HypothesisCandidate(
         structure=StructuralHypothesis.UNKNOWN,
         scientific_label="UNKNOWN",
         axis_concept=None,
         target_concept=None,
+        # Minimum baseline evidence-support score (not a probability).
         score=0.20,
-        supporting_evidence=["Fallback baseline structural hypothesis."],
+        supporting_evidence=[
+            "Fallback baseline: no specific structural evidence applies. "
+            "Score=0.20 is a minimum floor, not a 20% probability."
+        ],
         contradicting_evidence=[],
         missing_evidence=[],
         provenance_cells=_collect_provenance(bag),
-        rationale="Unknown fallback structural hypothesis.",
+        rationale=(
+            "Unknown fallback structural hypothesis with minimum baseline "
+            "evidence-support score of 0.20 (not a probability)."
+        ),
     )

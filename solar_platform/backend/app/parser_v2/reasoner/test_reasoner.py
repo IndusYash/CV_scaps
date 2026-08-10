@@ -197,15 +197,56 @@ class TestReasonerRealWorkbook(unittest.TestCase):
         self.assertIn("DETECTIVITY", labels)
 
     def test_sheet1_remains_unresolved(self):
-        """Rule 7E & 9: Sheet1 positional data remains UNRESOLVED."""
+        """
+        Rule 7E & 9: Sheet1 positional data — overall interpretation remains UNRESOLVED.
+
+        This test also verifies concept separation:
+          - acceptance_state == UNRESOLVED   (overall interpretation is ambiguous)
+          - winner.structure is a valid StructuralHypothesis (the reasoner still
+            picks the best structural form; UNRESOLVED does NOT mean structure=None)
+          - winner.scientific_label == "UNKNOWN" (scientific interpretation unclear)
+
+        These three values must remain independently set.
+        """
         sheet = self.raw_wb.get_sheet("Sheet1")
         regions = scan_sheet(sheet)
         interps = classify_sheet_regions(sheet, regions)
 
-        main_interp = max(interps, key=lambda i: i.evidence_bag.filter_by_name("numeric_density_high")[0].value.get("total_numeric_cells", 0) if i.evidence_bag.filter_by_name("numeric_density_high") else 0)
-        self.assertEqual(main_reg_state := main_interp.acceptance_state, AcceptanceState.UNRESOLVED,
-            f"Sheet1 expected UNRESOLVED, got {main_reg_state}")
-        self.assertEqual(main_interp.winner.scientific_label, "UNKNOWN")
+        main_interp = max(
+            interps,
+            key=lambda i: (
+                i.evidence_bag.filter_by_name("numeric_density_high")[0]
+                .value.get("total_numeric_cells", 0)
+                if i.evidence_bag.filter_by_name("numeric_density_high")
+                else 0
+            ),
+        )
+
+        # Concept 3: overall acceptance state is UNRESOLVED
+        self.assertEqual(
+            main_interp.acceptance_state,
+            AcceptanceState.UNRESOLVED,
+            f"Sheet1 expected UNRESOLVED overall state, got {main_interp.acceptance_state}",
+        )
+
+        # Concept 1: structural hypothesis is still a valid enum member (not None!)
+        # UNRESOLVED state does NOT mean the reasoner failed to pick a structural form.
+        self.assertIsNotNone(
+            main_interp.winner,
+            "Sheet1: winner must be set even when overall state is UNRESOLVED",
+        )
+        self.assertIn(
+            main_interp.winner.structure,
+            list(StructuralHypothesis),
+            "Sheet1: winner.structure must be a valid StructuralHypothesis even when UNRESOLVED",
+        )
+
+        # Concept 2: scientific interpretation is UNKNOWN
+        self.assertEqual(
+            main_interp.winner.scientific_label,
+            "UNKNOWN",
+            "Sheet1: scientific_label must be UNKNOWN for device-profile positional data",
+        )
 
 
 if __name__ == "__main__":
