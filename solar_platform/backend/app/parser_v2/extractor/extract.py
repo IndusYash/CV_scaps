@@ -30,6 +30,7 @@ from app.parser_v2.extractor.ir import (
     TraceData,
 )
 from app.parser_v2.extractor.category_table_extractor import extract_category_table
+from app.parser_v2.extractor.interleaved_curve_grid_extractor import extract_interleaved_curve_grid
 from app.parser_v2.extractor.numeric_curve_grid_extractor import extract_numeric_curve_grid
 from app.parser_v2.extractor.scalar_sweep_table_extractor import extract_scalar_sweep_table
 from app.parser_v2.extractor.stacked_curve_blocks_extractor import extract_stacked_curve_blocks
@@ -106,17 +107,10 @@ def extract_region(
     sheet: RawSheet,
     region: CandidateRegion,
     interpretation: RegionInterpretation,
-) -> ExtractedDataset:
+) -> List[ExtractedDataset]:
     """
-    Extract data from one CandidateRegion given its RegionInterpretation.
+    Extract structured data from one region based on its winning interpretation.
 
-    Returns an ExtractedDataset containing:
-    - Extracted typed data (axis/traces, scalar_rows, or category_rows)
-    - Raw verbatim cell grid (always)
-    - Full hypothesis score ranking (always)
-    - Ambiguity flags (is_ambiguous, ambiguity_note)
-
-    This function is the only entry point to Stage 5.
     It does NOT re-classify or override the Reasoner's decisions.
     """
     winner = interpretation.winner
@@ -147,6 +141,18 @@ def extract_region(
                 b.is_ambiguous = is_ambiguous
                 b.ambiguity_note = ambiguity_note
             return blocks
+
+    if winner is not None and winner.structure == StructuralHypothesis.INTERLEAVED_CURVE_GRID:
+        curves = extract_interleaved_curve_grid(sheet, region, interpretation)
+        if curves:
+            for c in curves:
+                c.raw = raw
+                c.winner_evidence_score = winner.score
+                c.winner_runner_up_gap = interpretation.winner_runner_up_gap
+                c.all_hypothesis_scores = _build_hypothesis_scores(interpretation)
+                c.is_ambiguous = is_ambiguous
+                c.ambiguity_note = ambiguity_note
+            return curves
 
     axis: Optional[AxisData] = None
     traces: List[TraceData] = []

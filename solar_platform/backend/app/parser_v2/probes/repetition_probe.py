@@ -12,6 +12,7 @@ Does NOT classify experiments. Returns EvidenceItem objects with CellRef provena
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.parser_v2.reader.raw_model import RawSheet, RawCellType
@@ -99,11 +100,95 @@ def probe_repetition(region: CandidateRegion, sheet: RawSheet) -> List[EvidenceI
                     "pattern_type": pat.pattern_type,
                     "start_col": pat.start_col,
                     "end_col": pat.end_col,
-                    "num_columns": pat.num_columns,
-                    "numeric_density": pat.numeric_density,
                 },
-                rationale=f"Discovered contiguous {pat.pattern_type} of {pat.num_columns} columns from col {pat.start_col} to {pat.end_col}.",
-                source_cells=source_cells[:pat.num_columns],
+                rationale=f"Scanner discovered repeated column pattern {pat.pattern_type} in cols {pat.start_col}..{pat.end_col}.",
+                source_cells=source_cells,
             ))
 
+    # Generic interleaved independent (axis, target) column group detection
+    interleaved_item = _detect_interleaved_groups(region, sheet)
+    if interleaved_item is not None:
+        items.append(interleaved_item)
+
     return items
+
+
+def _detect_interleaved_groups(
+    region: CandidateRegion,
+    sheet: RawSheet,
+) -> Optional[EvidenceItem]:
+    """
+    Detect repeated independent (axis, target) column groups across region columns.
+
+    Supports:
+      - 2-col groups: [Axis | Target] [Axis | Target] ...
+      - 3-col groups: [Param | Axis | Target] [Param | Axis | Target] ...
+      - Multi-target groups: [Axis | Target1 | Target2] ...
+    Requires at least 2 independent verified monotonic axis columns.
+    """
+    if not region.columns_info or len(region.columns_info) < 4:
+        return None
+
+    pairs: List[Tuple[int, int]] = []
+    groups: List[Dict[str, Any]] = []
+    used_cols = set()
+
+    for col_info in region.columns_info:
+        c_idx = col_info.col_index
+        if c_idx in used_cols:
+            continue
+
+        if col_info.numeric_density >= 0.40 and (col_info.is_monotonic_increasing or col_info.is_monotonic_decreasing):
+            # Header check: target concept headers (j1, j2, jtot, current, qe, responsivity) are not x-axes
+            cell_hdr = sheet.get(region.row_start, c_idx) or sheet.get(max(0, region.row_start - 1), c_idx)
+            hdr_str = (cell_hdr.display_str or "").lower() if cell_hdr else ""
+            is_target_hdr = bool(re.search(r"\bj\d*[\(\_\s]|\bcurrent\b|\bq\.?e\.?\b|\bresponsivity\b|\bdetectivity\b", hdr_str))
+            if is_target_hdr:
+                continue
+
+            # Look for adjacent numeric target column (c_idx + 1)
+            next_cand = [
+                c.col_index for c in region.columns_info
+                if c.col_index > c_idx and c.col_index not in used_cols and c.numeric_density >= 0.30
+            ]
+            if next_cand:
+                y_col = next_cand[0]
+                pairs.append((c_idx, y_col))
+                used_cols.add(c_idx)
+                used_cols.add(y_col)
+
+                param_col = (c_idx - 1) if (c_idx - 1) >= region.col_start and (c_idx - 1) not in used_cols else None
+                groups.append({"param_col": param_col, "x_col": c_idx, "y_cols": [y_col]})
+
+    if len(pairs) < 2:
+        return None
+
+    x_cols = [p[0] for p in pairs]
+    y_cols_all = [p[1] for p in pairs]
+
+    strides = [x_cols[i] - x_cols[i - 1] for i in range(1, len(x_cols))]
+    is_uniform_stride = len(set(strides)) == 1
+    stride_val = strides[0] if is_uniform_stride else None
+
+    source_cells = []
+    for p in pairs:
+        source_cells.append(_make_cell_ref(sheet, region.row_start, p[0]))
+        source_cells.append(_make_cell_ref(sheet, region.row_start, p[1]))
+
+    return EvidenceItem(
+        name="interleaved_column_group",
+        probe_id=PROBE_ID,
+        polarity=EvidencePolarity.POSITIVE,
+        confidence=0.92 if is_uniform_stride else 0.75,
+        value={
+            "n_curves": len(pairs),
+            "pairs": pairs,
+            "groups": groups,
+            "x_cols": x_cols,
+            "y_cols": y_cols_all,
+            "stride": stride_val,
+            "is_uniform_stride": is_uniform_stride,
+        },
+        rationale=f"Region contains {len(pairs)} repeated independent (axis, target) column pairs across columns (x_cols={x_cols}).",
+        source_cells=source_cells,
+    )

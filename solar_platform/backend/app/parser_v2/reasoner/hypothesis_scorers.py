@@ -71,9 +71,10 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
     contradicting: List[str] = []
     missing: List[str] = []
 
-    # 1. Monotonic axis evidence
+    # 1. Monotonic axis evidence (score primary x-column once)
     mono_items = bag.filter_by_name("axis_monotonicity")
-    for item in mono_items:
+    if mono_items:
+        item = mono_items[0]
         if item.polarity == EvidencePolarity.POSITIVE:
             score += 0.35
             direction = item.value.get("direction", "monotonic")
@@ -82,8 +83,7 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
         elif item.polarity == EvidencePolarity.NEGATIVE:
             score -= 0.20
             contradicting.append("Primary axis column is numeric but not strictly monotonic (-0.20).")
-
-    if not mono_items:
+    else:
         missing.append("No axis monotonicity evidence found.")
 
     # 2. String category column 0 contradiction
@@ -145,6 +145,13 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
     if has_stacked_blocks:
         score -= 0.45
         contradicting.append("Region consists of vertically stacked sub-blocks — better fit for StackedCurveBlocks (-0.45).")
+
+    interleaved_items = bag.filter_by_name("interleaved_column_group")
+    has_interleaved_group = any(item.polarity == EvidencePolarity.POSITIVE and item.value.get("n_curves", 0) >= 2 for item in interleaved_items)
+
+    if has_interleaved_group:
+        score -= 0.45
+        contradicting.append("Region consists of horizontally interleaved curve pairs — better fit for InterleavedCurveGrid (-0.45).")
 
     # 2-column/3-column parameter vs scalar metric summary table (e.g. thickness/Rsh vs Jsc) -> penalize CurveGrid
     is_scalar_table_shape = (
@@ -454,6 +461,88 @@ def score_stacked_curve_blocks(bag: EvidenceBag, region: CandidateRegion) -> Hyp
 
     return HypothesisCandidate(
         structure=StructuralHypothesis.STACKED_CURVE_BLOCKS,
+        scientific_label=sci_label if final_score >= 0.40 else "UNKNOWN",
+        axis_concept=axis_concept,
+        target_concept=target_concept,
+        score=final_score,
+        supporting_evidence=supporting,
+        contradicting_evidence=contradicting,
+        missing_evidence=missing,
+        provenance_cells=_collect_provenance(bag),
+        rationale=rationale,
+    )
+
+
+def score_interleaved_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> HypothesisCandidate:
+    """
+    Pure evidence-based scoring function for the generic InterleavedCurveGrid hypothesis.
+
+    Evaluates:
+      - interleaved_column_group evidence from RepetitionProbe (n_curves >= 2)
+      - multiple independent monotonic x-axis columns from AxisProbe
+      - header parameter tokens/expressions
+      - layered scientific interpretation (JV, QE, RESPONSIVITY, etc.)
+    """
+    score = 0.0
+    supporting: List[str] = []
+    contradicting: List[str] = []
+    missing: List[str] = []
+
+    interleaved_items = bag.filter_by_name("interleaved_column_group")
+    has_interleaved = False
+    n_curves = 0
+
+    for item in interleaved_items:
+        if item.polarity == EvidencePolarity.POSITIVE:
+            has_interleaved = True
+            n_curves = item.value.get("n_curves", 0)
+            score += 0.55
+            supporting.append(f"RepetitionProbe detected {n_curves} repeated independent (axis, target) column pairs (+0.55).")
+            if n_curves >= 3:
+                score += 0.20
+                supporting.append(f"Multi-curve family of {n_curves} interleaved pairs (+0.20).")
+
+    if not has_interleaved or n_curves < 2:
+        score -= 0.60
+        contradicting.append("No repeated independent (axis, target) column pairs detected (-0.60).")
+
+    # Header parameter evidence (helpful but NOT mandatory)
+    param_items = bag.filter_by_name("candidate_parameter_expressions")
+    if any(item.polarity == EvidencePolarity.POSITIVE for item in param_items):
+        score += 0.10
+        supporting.append("Header parameter expressions detected for interleaved curves (+0.10).")
+
+    # Layered scientific interpretation
+    lbl_items = bag.filter_by_name("candidate_label_concepts")
+    axis_concept = "Voltage"
+    target_concept = "Current"
+    sci_label = "UNKNOWN"
+
+    if lbl_items:
+        for item in lbl_items:
+            concepts = item.value.get("distinct_concepts", [])
+            for c in concepts:
+                if c in ("Voltage", "Current", "Wavelength", "QE", "Responsivity", "Detectivity"):
+                    if c in ("Voltage", "Current"):
+                        sci_label = "JV"
+                    elif c in ("Wavelength", "QE"):
+                        sci_label = "QE"
+                    elif c == "Responsivity":
+                        sci_label = "RESPONSIVITY"
+                    elif c == "Detectivity":
+                        sci_label = "DETECTIVITY"
+                    score += 0.10
+                    supporting.append(f"Headers match scientific concept {c} (+0.10).")
+
+    final_score = max(0.0, min(1.0, score))
+
+    rationale = (
+        f"InterleavedCurveGrid evidence-support score: {final_score:.2f} ({n_curves} interleaved curves). "
+        f"Score is not a probability."
+    )
+
+    return HypothesisCandidate(
+        structure=StructuralHypothesis.INTERLEAVED_CURVE_GRID,
         scientific_label=sci_label if final_score >= 0.40 else "UNKNOWN",
         axis_concept=axis_concept,
         target_concept=target_concept,

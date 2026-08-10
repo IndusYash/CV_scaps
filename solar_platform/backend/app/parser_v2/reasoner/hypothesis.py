@@ -71,6 +71,7 @@ class StructuralHypothesis(str, Enum):
     SCALAR_SWEEP_TABLE = "ScalarSweepTable"
     CATEGORY_TABLE     = "CategoryTable"
     STACKED_CURVE_BLOCKS = "StackedCurveBlocks"
+    INTERLEAVED_CURVE_GRID = "InterleavedCurveGrid"
     UNKNOWN            = "Unknown"
 
 

@@ -37,6 +37,7 @@ from app.parser_v2.reasoner.hypothesis import (
 )
 from app.parser_v2.reasoner.hypothesis_scorers import (
     score_category_table,
+    score_interleaved_curve_grid,
     score_numeric_curve_grid,
     score_scalar_sweep_table,
     score_stacked_curve_blocks,
@@ -103,6 +104,7 @@ def classify_region(
         score_scalar_sweep_table(bag, region),
         score_category_table(bag, region),
         score_stacked_curve_blocks(bag, region),
+        score_interleaved_curve_grid(bag, region),
         score_unknown(bag, region),
     ]
 

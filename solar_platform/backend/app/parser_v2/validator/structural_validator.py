@@ -33,8 +33,8 @@ def validate_structure(dataset: ExtractedDataset) -> List[ValidationIssue]:
     """Perform Level 1 Structural Validation checks on an ExtractedDataset."""
     issues: List[ValidationIssue] = []
 
-    # 1. NumericCurveGrid & StackedCurveBlocks checks
-    if dataset.structure_type in ("NumericCurveGrid", "StackedCurveBlocks"):
+    # 1. NumericCurveGrid, StackedCurveBlocks & InterleavedCurveGrid checks
+    if dataset.structure_type in ("NumericCurveGrid", "StackedCurveBlocks", "InterleavedCurveGrid"):
         axis = dataset.axis
         traces = dataset.traces
 
