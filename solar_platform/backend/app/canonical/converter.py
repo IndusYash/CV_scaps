@@ -153,7 +153,7 @@ def convert_validated_dataset_to_canonical(
                 )
 
     val_issues_text = [
-        f"[{i.level.value}] {i.severity.value}: {i.description}" for i in val_ds.issues
+        f"[{i.level.value}] {i.severity.value}: {i.message}" for i in val_ds.issues
     ]
 
     raw_ref_dict = {

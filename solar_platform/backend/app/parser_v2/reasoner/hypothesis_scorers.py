@@ -170,11 +170,6 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
         score += 0.05
         supporting.append(f"Sheet name '{region.sheet_name}' weakly supports numeric curve grid (+0.05).")
 
-    # Clamp to evidence-support bounds [0.0, 1.0].
-    # 0.0 = lower bound (no positive evidence; does NOT mean impossible).
-    # 1.0 = upper bound (maximum evidence-contribution ceiling; NOT a probability).
-    final_score = max(0.0, min(1.0, score))
-
     # Layered scientific interpretation (Rule 3 & 7E)
     scientific_label: Optional[str] = None
     axis_concept: Optional[str] = None
@@ -184,35 +179,49 @@ def score_numeric_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> Hypot
         # Sheet1 / Device profile rule (Rule 7E & 9)
         axis_concept = "Position"
         scientific_label = "UNKNOWN"
-        final_score = max(0.0, final_score - 0.65)
+        score -= 0.65
         contradicting.append("Position axis 'x(um)' detected — not a standard curve experiment (-0.65).")
     else:
         if "Voltage" in distinct_concepts:
             axis_concept = "Voltage"
+            score += 0.10
+            supporting.append("Header matches Voltage axis concept (+0.10).")
         elif "Wavelength" in distinct_concepts:
             axis_concept = "Wavelength"
+            score += 0.10
+            supporting.append("Header matches Wavelength axis concept (+0.10).")
 
         # Detectivity takes precedence over generic Current/Jsc
         if "Detectivity" in distinct_concepts:
             target_concept = "Detectivity"
             scientific_label = "DETECTIVITY"
+            score += 0.10
+            supporting.append("Header matches Detectivity target concept (+0.10).")
         elif "Responsivity" in distinct_concepts:
             target_concept = "Responsivity"
             scientific_label = "RESPONSIVITY"
+            score += 0.10
+            supporting.append("Header matches Responsivity target concept (+0.10).")
         elif "QE" in distinct_concepts:
             target_concept = "QE"
             scientific_label = "QE"
+            score += 0.10
+            supporting.append("Header matches QE target concept (+0.10).")
         elif "Current" in distinct_concepts or "Jsc" in distinct_concepts:
             target_concept = "Current"
             scientific_label = "JV"
+            score += 0.10
+            supporting.append("Header matches Current target concept (+0.10).")
 
-        if not scientific_label and final_score >= 0.50:
+        if not scientific_label and score >= 0.50:
             if axis_concept == "Voltage":
                 scientific_label = "JV"
             elif axis_concept == "Wavelength":
                 scientific_label = "QE"
             else:
                 scientific_label = "UNKNOWN"
+
+    final_score = max(0.0, min(1.0, score))
 
     # Rationale: human-readable summary of structural evidence-support score
     # and the separately-derived scientific interpretation.
@@ -519,20 +528,34 @@ def score_interleaved_curve_grid(bag: EvidenceBag, region: CandidateRegion) -> H
     sci_label = "UNKNOWN"
 
     if lbl_items:
+        distinct_all = set()
         for item in lbl_items:
-            concepts = item.value.get("distinct_concepts", [])
-            for c in concepts:
-                if c in ("Voltage", "Current", "Wavelength", "QE", "Responsivity", "Detectivity"):
-                    if c in ("Voltage", "Current"):
-                        sci_label = "JV"
-                    elif c in ("Wavelength", "QE"):
-                        sci_label = "QE"
-                    elif c == "Responsivity":
-                        sci_label = "RESPONSIVITY"
-                    elif c == "Detectivity":
-                        sci_label = "DETECTIVITY"
-                    score += 0.10
-                    supporting.append(f"Headers match scientific concept {c} (+0.10).")
+            distinct_all.update(item.value.get("distinct_concepts", []))
+
+        if "Voltage" in distinct_all or "Current" in distinct_all:
+            sci_label = "JV"
+            axis_concept = "Voltage"
+            target_concept = "Current"
+            score += 0.10
+            supporting.append("Headers match scientific concept JV (+0.10).")
+        elif "Wavelength" in distinct_all or "QE" in distinct_all:
+            sci_label = "QE"
+            axis_concept = "Wavelength"
+            target_concept = "QE"
+            score += 0.10
+            supporting.append("Headers match scientific concept QE (+0.10).")
+        elif "Responsivity" in distinct_all:
+            sci_label = "RESPONSIVITY"
+            axis_concept = "Wavelength"
+            target_concept = "Responsivity"
+            score += 0.10
+            supporting.append("Headers match scientific concept Responsivity (+0.10).")
+        elif "Detectivity" in distinct_all:
+            sci_label = "DETECTIVITY"
+            axis_concept = "Wavelength"
+            target_concept = "Detectivity"
+            score += 0.10
+            supporting.append("Headers match scientific concept Detectivity (+0.10).")
 
     final_score = max(0.0, min(1.0, score))
 
