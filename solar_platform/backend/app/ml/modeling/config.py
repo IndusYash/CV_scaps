@@ -75,5 +75,28 @@ class TrainingConfig:
     learning_rate: float = 1e-3
     weight_decay: float = 1e-4
     epochs: int = 100
+    max_epochs: int = 100
     early_stopping_patience: int = 15
+    huber_delta: float = 1.0
     seed: int = 42
+    model_config: ModelConfig = field(default_factory=ModelConfig)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "task_type": self.task_type.value,
+            "seed": self.seed,
+            "batch_size": self.batch_size,
+            "learning_rate": self.learning_rate,
+            "weight_decay": self.weight_decay,
+            "epochs": self.epochs,
+            "max_epochs": self.max_epochs,
+            "early_stopping_patience": self.early_stopping_patience,
+            "huber_delta": self.huber_delta,
+            "model_config": {
+                "model_name": self.model_config.model_name,
+                "input_dim": self.model_config.input_dim,
+                "hidden_dims": self.model_config.hidden_dims,
+                "dropout_rate": self.model_config.dropout_rate,
+                "use_residual": self.model_config.use_residual,
+            },
+        }

@@ -47,6 +47,23 @@ class CurvePointDataset:
             "y_provenance": rec.y_provenance.to_dict() if rec.y_provenance else None,
         }
 
+    def filter_by_scientific_types(self, scientific_types: List[str]) -> "CurvePointDataset":
+        """Filter dataset records by scientific type with physical value bounds filtering."""
+        stypes = set(scientific_types)
+        filtered_recs = []
+        for r in self.records:
+            if r.scientific_type not in stypes:
+                continue
+            # Apply physical range plausibility checks
+            if r.scientific_type == "JV" and not (-50.0 <= r.y <= 150.0):
+                continue
+            if r.scientific_type == "QE" and not (-5.0 <= r.y <= 150.0):
+                continue
+            if r.scientific_type == "RESPONSIVITY" and not (-1.0 <= r.y <= 20.0):
+                continue
+            filtered_recs.append(r)
+        return CurvePointDataset(filtered_recs, self.preprocessor)
+
 
 class ScalarRecordDataset:
     """Dataset container for scalar prediction tasks f(material, params) -> target_value."""

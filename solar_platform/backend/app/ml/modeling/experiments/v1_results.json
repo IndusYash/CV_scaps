@@ -1,0 +1,186 @@
+{
+  "is_v1_successful": false,
+  "verdict": "V1 FAILED / NEEDS REVISION",
+  "data_integrity": {
+    "total_records": 116480,
+    "verified_traceable_records": 116480,
+    "integrity_pass_rate": 1.0,
+    "is_data_integrity_passed": true
+  },
+  "regime_a_results": {
+    "JV": {
+      "sample_counts": {
+        "train": 2564,
+        "val": 243,
+        "test": 373
+      },
+      "baseline_mean": {
+        "mae": 17.002433,
+        "rmse": 18.892672,
+        "r2": -0.015688,
+        "nrmse": 0.11673,
+        "max_absolute_error": 95.51721,
+        "sample_count": 373
+      },
+      "baseline_linear": {
+        "mae": 12.482921,
+        "rmse": 15.67155,
+        "r2": 0.301128,
+        "nrmse": 0.096828,
+        "max_absolute_error": 103.751235,
+        "sample_count": 373
+      },
+      "solar_mlp_neural": {
+        "mae": 21.228565,
+        "rmse": 28.074804,
+        "r2": -1.242885,
+        "nrmse": 0.173463,
+        "max_absolute_error": 118.764343,
+        "sample_count": 373
+      }
+    },
+    "QE": {
+      "sample_counts": {
+        "train": 68623,
+        "val": 10644,
+        "test": 23985
+      },
+      "baseline_mean": {
+        "mae": 25.340664,
+        "rmse": 28.30362,
+        "r2": -0.062569,
+        "nrmse": 0.282363,
+        "max_absolute_error": 78.958832,
+        "sample_count": 23985
+      },
+      "baseline_linear": {
+        "mae": 24.503093,
+        "rmse": 27.460994,
+        "r2": -0.000243,
+        "nrmse": 0.273957,
+        "max_absolute_error": 77.797181,
+        "sample_count": 23985
+      },
+      "solar_mlp_neural": {
+        "mae": 14.410781,
+        "rmse": 31.009557,
+        "r2": -0.275453,
+        "nrmse": 0.309358,
+        "max_absolute_error": 100.2378,
+        "sample_count": 23985
+      }
+    },
+    "RESPONSIVITY": {
+      "sample_counts": {
+        "train": 1944,
+        "val": 497,
+        "test": 1011
+      },
+      "baseline_mean": {
+        "mae": 0.165371,
+        "rmse": 0.271414,
+        "r2": -0.004747,
+        "nrmse": 0.057932,
+        "max_absolute_error": 4.273563,
+        "sample_count": 1011
+      },
+      "baseline_linear": {
+        "mae": 0.163619,
+        "rmse": 0.275879,
+        "r2": -0.03808,
+        "nrmse": 0.058885,
+        "max_absolute_error": 4.272731,
+        "sample_count": 1011
+      },
+      "solar_mlp_neural": {
+        "mae": 0.392828,
+        "rmse": 0.477107,
+        "r2": -2.104731,
+        "nrmse": 0.101836,
+        "max_absolute_error": 4.685046,
+        "sample_count": 1011
+      }
+    }
+  },
+  "regime_b_results": {
+    "JV": {
+      "sample_counts": {
+        "train": 2577,
+        "test": 603
+      },
+      "baseline_mean": {
+        "mae": 16.572149,
+        "rmse": 18.622855,
+        "r2": -1.285766,
+        "nrmse": 0.441733,
+        "max_absolute_error": 31.315447,
+        "sample_count": 603
+      },
+      "baseline_linear": {
+        "mae": 13.967666,
+        "rmse": 16.503596,
+        "r2": -0.795132,
+        "nrmse": 0.391464,
+        "max_absolute_error": 33.947788,
+        "sample_count": 603
+      },
+      "solar_mlp_neural": {
+        "mae": 12.385118,
+        "rmse": 17.431362,
+        "r2": -1.002636,
+        "nrmse": 0.413471,
+        "max_absolute_error": 37.144409,
+        "sample_count": 603
+      }
+    },
+    "QE": {
+      "sample_counts": {
+        "train": 81170,
+        "test": 22082
+      },
+      "baseline_mean": {
+        "mae": 25.481365,
+        "rmse": 26.671236,
+        "r2": -0.183293,
+        "nrmse": 0.269602,
+        "max_absolute_error": 75.386508,
+        "sample_count": 22082
+      },
+      "baseline_linear": {
+        "mae": 24.945315,
+        "rmse": 26.120794,
+        "r2": -0.134955,
+        "nrmse": 0.264038,
+        "max_absolute_error": 70.314447,
+        "sample_count": 22082
+      },
+      "solar_mlp_neural": {
+        "mae": 13.043995,
+        "rmse": 27.772471,
+        "r2": -0.283024,
+        "nrmse": 0.280734,
+        "max_absolute_error": 98.92756,
+        "sample_count": 22082
+      }
+    }
+  },
+  "sanity_checks": {
+    "normal_r2": -12.6372,
+    "target_shuffled_r2": -12.6372,
+    "target_shuffling_sanity_passed": false,
+    "is_sanity_check_passed": false
+  },
+  "plots": {
+    "regime_a_plots": [
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\training_dynamics.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\predicted_vs_actual.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\best_case_curve.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\baseline_comparison.png"
+    ],
+    "regime_b_plots": [
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\training_dynamics.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\predicted_vs_actual.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\regime_comparison.png"
+    ]
+  }
+}

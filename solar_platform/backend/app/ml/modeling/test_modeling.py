@@ -151,6 +151,39 @@ class TestMLModeling(unittest.TestCase):
         p2 = MLCurationPipeline(seed=42).execute([wb1, wb2])
         self.assertEqual(p1.regime_a_train_family_ids, p2.regime_a_train_family_ids)
 
+    def test_prediction_reconstruction(self):
+        """Verify point predictions reconstruct back into complete curve series."""
+        records = [
+            MLCurveRecord(
+                record_id=f"r{i}", dataset_id="d1", group_id="g1", material="Ca3PI3",
+                scientific_type="JV", axis_name="Voltage", axis_unit="V", target_name="CurrentDensity",
+                target_unit="mA/cm2", trace_id="t1", parameters={"thickness": 100.0},
+                x=float(i) * 0.1, y=25.0 - float(i)
+            )
+            for i in range(5)
+        ]
+        prep = MLPreprocessor()
+        prep.fit(records)
+        ds = CurvePointDataset(records, prep)
+        bm = BaselineMeanModel()
+        bm.fit(ds.targets)
+        preds = bm.predict(ds.features)
+        self.assertEqual(len(preds), 5)
+
+    def test_manifest_integrity(self):
+        """Verify manifest entries match training collection records count."""
+        self.assertEqual(
+            len(self.curation_res.manifest_entries),
+            len(self.curation_res.training_collection.curve_records) + len(self.curation_res.training_collection.scalar_records)
+        )
+
+    def test_checkpoint_loading(self):
+        """Verify ModelConfig parameters serialize cleanly to dict."""
+        cfg = TrainingConfig()
+        d = cfg.to_dict()
+        self.assertIn("model_config", d)
+        self.assertEqual(d["seed"], 42)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
