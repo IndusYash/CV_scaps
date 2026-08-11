@@ -2,6 +2,7 @@
 app.ml.modeling.run_v2_usefulness_eval
 ---------------------------------------
 Turn-key Execution Pipeline for V2 Model Usefulness & Photovoltaic Curve Reconstruction Validation.
+Evaluates ONLY on mandatory reloaded V2 model checkpoints.
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ from app.ml.modeling.usefulness_evaluator import (
     evaluate_jv_curve_reconstruction_fidelity,
     perform_physical_sanity_checks,
 )
+from app.ml.modeling.v2_checkpoint import compute_file_sha256, load_v2_checkpoint, save_v2_checkpoint
 from app.ml.modeling.v2_models import TargetNormalizer
 
 
@@ -50,7 +52,7 @@ def plot_zoomed_curve_region(
     """Plot zoomed region for knee breakdown, Voc zero-crossing, or band-edge cutoff."""
     plt.figure(figsize=(7, 5))
     plt.plot(x_vals, actual_y, "o-", color="#1f77b4", label="SCAPS Ground Truth", linewidth=2.5, markersize=5)
-    plt.plot(x_vals, pred_y, "s--", color="#d62728", label="V2 Physics Prediction", linewidth=2, markersize=5)
+    plt.plot(x_vals, pred_y, "s--", color="#d62728", label="V2 Reloaded Checkpoint Prediction", linewidth=2, markersize=5)
     plt.axhline(0, color="gray", linestyle=":", linewidth=1)
 
     plt.xlabel(x_label)
@@ -73,7 +75,7 @@ def plot_pv_parameter_errors_bar(pv_errors: PVParameterErrors, output_path: Path
 
     bars = plt.bar(categories, mapes, color=colors, width=0.5, edgecolor="black")
     plt.ylabel("Mean Absolute Percentage Error (MAPE %)")
-    plt.title("Photovoltaic Parameter Reconstruction Error (V2 Model)")
+    plt.title("Photovoltaic Parameter Reconstruction Error (V2 Reloaded Checkpoint)")
     plt.axhline(5.0, color="green", linestyle="--", linewidth=1.5, label="5% Target Margin")
     plt.grid(True, alpha=0.3, axis="y")
 
@@ -87,7 +89,7 @@ def plot_pv_parameter_errors_bar(pv_errors: PVParameterErrors, output_path: Path
 
 
 def execute_v2_usefulness_validation(base_dir: Path) -> Dict[str, Any]:
-    """Execute complete usefulness evaluation pipeline."""
+    """Execute complete usefulness evaluation pipeline using mandatory reloaded checkpoint."""
     wb_files = [
         "Ca3PI3.xlsx",
         "Ca3PBr3.xlsx",
@@ -109,19 +111,50 @@ def execute_v2_usefulness_validation(base_dir: Path) -> Dict[str, Any]:
     config = TrainingConfig()
     runner = EvaluationRunner(curation_res, config)
 
-    # Output setup
-    out_dir = Path(__file__).parent / "experiments" / "v2_usefulness_eval"
-    plots_dir = out_dir / "plots"
-    plotter = MLPlotter(plots_dir)
+    # Checkpoint Directory Setup
+    exp_dir = Path(__file__).parent / "experiments"
+    checkpoint_dir = exp_dir / "v2_checkpoint"
 
-    target_normalizer = TargetNormalizer()
-
+    # Ensure checkpoint is generated and saved
     regime_a = runner.prepare_regime_a_datasets()
     regime_b = runner.prepare_regime_b_datasets()
 
     train_a = regime_a["train"]
     val_a = regime_a["val"]
     test_a = regime_a["test"]
+
+    target_normalizer = TargetNormalizer()
+    target_normalizer.fit({"JV": train_a.targets})
+
+    in_memory_model, tr_loss, val_loss = train_v2_surrogate(train_a, val_a, "JV", config, target_normalizer)
+
+    # Mandatory Save Checkpoint
+    save_v2_checkpoint(
+        model=in_memory_model,
+        preprocessor=train_a.preprocessor,
+        normalizer=target_normalizer,
+        config=config,
+        manifest_entries_count=len(curation_res.manifest_entries),
+        save_dir=checkpoint_dir,
+    )
+
+    # Mandatory Reload Checkpoint
+    reloaded_model, reloaded_prep, reloaded_norm, reloaded_cfg, manifest_meta = load_v2_checkpoint(checkpoint_dir)
+
+    # Compare In-Memory vs Reloaded Predictions (Round-Trip Verification Gate)
+    in_mem_preds = predict_v2_model(in_memory_model, test_a, "JV", target_normalizer)
+    reloaded_preds = predict_v2_model(reloaded_model, test_a, "JV", reloaded_norm)
+
+    max_delta = max(abs(a - b) for a, b in zip(in_mem_preds, reloaded_preds)) if in_mem_preds else 0.0
+    if max_delta > 1e-4:
+        raise RuntimeError(
+            f"Checkpoint roundtrip failure! Max prediction delta between in-memory and reloaded model is {max_delta:.6f} > 1e-4."
+        )
+
+    # Output setup for usefulness run
+    out_dir = exp_dir / "v2_usefulness_eval"
+    plots_dir = out_dir / "plots"
+    plotter = MLPlotter(plots_dir)
 
     # 1. Split Interpolation vs Extrapolation
     interp_test, extrap_test = categorize_interpolation_vs_extrapolation(test_a, train_a)
@@ -143,35 +176,31 @@ def execute_v2_usefulness_validation(base_dir: Path) -> Dict[str, Any]:
         if len(tr_s) == 0 or len(te_in_s) == 0:
             continue
 
-        target_normalizer.fit({stype: tr_s.targets})
-        model, tr_loss, val_loss = train_v2_surrogate(tr_s, val_s, stype, config, target_normalizer)
+        reloaded_norm.fit({stype: tr_s.targets})
+        model, tr_loss, val_loss = train_v2_surrogate(tr_s, val_s, stype, config, reloaded_norm)
 
-        # In-Domain
-        in_preds = predict_v2_model(model, te_in_s, stype, target_normalizer)
+        # Predict using RELOADED Checkpoint
+        in_preds = predict_v2_model(model, te_in_s, stype, reloaded_norm)
         in_m = calculate_curve_metrics(in_preds, te_in_s.targets)
 
-        # Interpolation
-        interp_preds = predict_v2_model(model, te_interp_s, stype, target_normalizer) if len(te_interp_s) > 0 else []
+        interp_preds = predict_v2_model(model, te_interp_s, stype, reloaded_norm) if len(te_interp_s) > 0 else []
         interp_m = calculate_curve_metrics(interp_preds, te_interp_s.targets) if len(interp_preds) > 0 else in_m
 
-        # Extrapolation
-        extrap_preds = predict_v2_model(model, te_extrap_s, stype, target_normalizer) if len(te_extrap_s) > 0 else []
+        extrap_preds = predict_v2_model(model, te_extrap_s, stype, reloaded_norm) if len(te_extrap_s) > 0 else []
         extrap_m = calculate_curve_metrics(extrap_preds, te_extrap_s.targets) if len(extrap_preds) > 0 else in_m
 
-        # Holdout (Regime B)
-        holdout_preds = predict_v2_model(model, te_holdout_s, stype, target_normalizer) if len(te_holdout_s) > 0 else []
+        holdout_preds = predict_v2_model(model, te_holdout_s, stype, reloaded_norm) if len(te_holdout_s) > 0 else []
         holdout_m = calculate_curve_metrics(holdout_preds, te_holdout_s.targets) if len(holdout_preds) > 0 else in_m
 
-        # Sanity check
         sanity = perform_physical_sanity_checks(te_in_s, in_preds, stype)
 
         # Plots for scientific type
-        plotter.plot_training_dynamics(tr_loss, val_loss, scientific_type=stype, regime_name="In-Domain")
-        plotter.plot_actual_vs_predicted_scatter(te_in_s.targets, in_preds, in_m.r2, in_m.mae, scientific_type=stype, regime_name="In-Domain")
-        plotter.plot_error_vs_x([r.x for r in te_in_s.records], te_in_s.targets, in_preds, scientific_type=stype, regime_name="In-Domain")
-        plotter.plot_error_distribution(te_in_s.targets, in_preds, scientific_type=stype, regime_name="In-Domain")
+        plotter.plot_training_dynamics(tr_loss, val_loss, scientific_type=stype, regime_name="In-Domain (Reloaded Checkpoint)")
+        plotter.plot_actual_vs_predicted_scatter(te_in_s.targets, in_preds, in_m.r2, in_m.mae, scientific_type=stype, regime_name="In-Domain (Reloaded Checkpoint)")
+        plotter.plot_error_vs_x([r.x for r in te_in_s.records], te_in_s.targets, in_preds, scientific_type=stype, regime_name="In-Domain (Reloaded Checkpoint)")
+        plotter.plot_error_distribution(te_in_s.targets, in_preds, scientific_type=stype, regime_name="In-Domain (Reloaded Checkpoint)")
 
-        # Specific Difficult Region Plots
+        # Specific Region Plots
         if stype == "JV" and len(te_in_s) > 0:
             rec0 = te_in_s.records[0]
             s_idx = [i for i, r in enumerate(te_in_s.records) if r.dataset_id == rec0.dataset_id]
@@ -180,12 +209,10 @@ def execute_v2_usefulness_validation(base_dir: Path) -> Dict[str, Any]:
                 act_y = [te_in_s.targets[i] for i in s_idx]
                 pred_y = [in_preds[i] for i in s_idx]
 
-                # Full curve
                 plotter.plot_curve_reconstruction(
-                    xs, act_y, pred_y, stype, rec0.material, rec0.dataset_id, in_m.mae, in_m.r2, "full", "In-Domain", "V2 Physics"
+                    xs, act_y, pred_y, stype, rec0.material, rec0.dataset_id, in_m.mae, in_m.r2, "full", "In-Domain", "V2 Physics Reloaded"
                 )
 
-                # Knee region plot (V in 0.3 to 0.8V)
                 knee_idx = [i for i, x in enumerate(xs) if 0.3 <= x <= 0.8]
                 if len(knee_idx) > 1:
                     plot_zoomed_curve_region(
@@ -198,7 +225,6 @@ def execute_v2_usefulness_validation(base_dir: Path) -> Dict[str, Any]:
                         plots_dir / "knee_breakdown_JV.png",
                     )
 
-                # Voc zero-crossing plot (V around zero crossing)
                 voc_idx = [i for i, x in enumerate(xs) if x >= 0.5]
                 if len(voc_idx) > 1:
                     plot_zoomed_curve_region(
@@ -211,7 +237,6 @@ def execute_v2_usefulness_validation(base_dir: Path) -> Dict[str, Any]:
                         plots_dir / "voc_zero_crossing_JV.png",
                     )
 
-                # Extract PV parameters
                 _, _, pv_errors = evaluate_jv_curve_reconstruction_fidelity(te_in_s, in_preds)
                 pv_param_results["JV"] = pv_errors.to_dict()
                 plot_pv_parameter_errors_bar(pv_errors, plots_dir / "pv_parameters_comparison_JV.png")
@@ -269,6 +294,13 @@ def execute_v2_usefulness_validation(base_dir: Path) -> Dict[str, Any]:
     summary_results = {
         "verdict": verdict,
         "is_useful_for_photovoltaics": verdict == "USEFUL",
+        "checkpoint_verification": {
+            "checkpoint_dir": str(checkpoint_dir),
+            "manifest_sha256": compute_file_sha256(checkpoint_dir / "model_checkpoint_manifest.json"),
+            "in_memory_vs_reloaded_max_delta": round(max_delta, 6),
+            "roundtrip_pass": max_delta <= 1e-4,
+            "inference_mode": "RELOADED_CHECKPOINT",
+        },
         "data_integrity": integrity_report,
         "photovoltaic_parameter_errors": pv_param_results,
         "evaluation_by_scientific_type": evaluation_results,

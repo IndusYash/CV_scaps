@@ -1,0 +1,23 @@
+{
+  "checkpoint_format_version": "2.0.0",
+  "model_name": "SolarV2MultiHeadSurrogate",
+  "architecture_details": {
+    "param_dim": 14,
+    "num_fourier_freqs": 8,
+    "fourier_dim": 16,
+    "hidden_dims": [
+      128,
+      128
+    ],
+    "diode_head_physics": "Shockley Equation + Neural Residual"
+  },
+  "num_parameters": 14500,
+  "dataset_manifest_records_count": 598,
+  "torch_available": false,
+  "sha256_checksums": {
+    "v2_model_weights.json": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "v2_preprocessor.json": "cae222aae886779805051e0e62a2bec5e91d34cbeff59b8fd44b0d679f36f241",
+    "v2_target_normalizer.json": "f7d467ec942a6182baf92d1e84df46fac401cf9b2fdc3c25c1b7cae4393f7070",
+    "v2_config.json": "051af4e0363b2c8bffac1e1226f22a3528860166ab55650bc6aec55a52250d09"
+  }
+}

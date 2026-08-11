@@ -22,6 +22,7 @@ from app.ml.modeling.models import BaselineLinearModel, BaselineMeanModel, TORCH
 from app.ml.modeling.plotter import MLPlotter
 from app.ml.modeling.preprocessing import MLPreprocessor
 from app.ml.modeling.run_v1_benchmarks import parse_and_convert_workbook, run_data_integrity_check, train_pytorch_mlp, predict_model
+from app.ml.modeling.v2_checkpoint import save_v2_checkpoint
 from app.ml.modeling.v2_models import SolarV2MultiHeadSurrogate, TargetNormalizer
 
 try:
@@ -123,11 +124,16 @@ def predict_v2_model(
     """Predict and denormalize targets for V2 model."""
     if model is None or len(dataset) == 0:
         return [0.0] * len(dataset)
-    model.eval()
-    with torch.no_grad():
-        X_t = torch.tensor(dataset.features, dtype=torch.float32)
-        out_norm = model(X_t, stype=stype).squeeze(1).tolist()
+    if hasattr(model, "eval") and TORCH_AVAILABLE:
+        model.eval()
+        with torch.no_grad():
+            X_t = torch.tensor(dataset.features, dtype=torch.float32)
+            out_norm = model(X_t, stype=stype).squeeze(1).tolist()
+            return [target_normalizer.denormalize(y_n, stype) for y_n in out_norm]
+    elif hasattr(model, "predict"):
+        out_norm = model.predict(dataset.features, stype=stype)
         return [target_normalizer.denormalize(y_n, stype) for y_n in out_norm]
+    return [0.0] * len(dataset)
 
 
 def execute_v2_benchmarking(base_dir: Path) -> Dict[str, Any]:
@@ -317,6 +323,16 @@ def execute_v2_benchmarking(base_dir: Path) -> Dict[str, Any]:
             "regime_b_plots": [p["file"] for p in plotter_b.generated_plots],
         },
     }
+
+    # Save Complete V2 Checkpoint Package
+    save_v2_checkpoint(
+        model=v2_model,
+        preprocessor=train_a.preprocessor,
+        normalizer=target_normalizer,
+        config=config,
+        manifest_entries_count=len(curation_res.manifest_entries),
+        save_dir=out_dir_exp / "v2_checkpoint",
+    )
 
     out_dir_exp.mkdir(parents=True, exist_ok=True)
     (out_dir_exp / "v2_results.json").write_text(json.dumps(summary_results, indent=2), encoding="utf-8")

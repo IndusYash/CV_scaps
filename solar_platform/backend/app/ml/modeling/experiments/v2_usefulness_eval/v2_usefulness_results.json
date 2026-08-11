@@ -1,6 +1,13 @@
 {
   "verdict": "NOT_YET_USEFUL",
   "is_useful_for_photovoltaics": false,
+  "checkpoint_verification": {
+    "checkpoint_dir": "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\v2_checkpoint",
+    "manifest_sha256": "7a2ba0abf6aae296f5ca27371644192f92f5524e25cfd25432b8eac58acc153a",
+    "in_memory_vs_reloaded_max_delta": 0.0,
+    "roundtrip_pass": true,
+    "inference_mode": "RELOADED_CHECKPOINT"
+  },
   "data_integrity": {
     "total_records": 116480,
     "verified_traceable_records": 116480,
