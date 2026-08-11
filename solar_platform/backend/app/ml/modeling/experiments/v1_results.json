@@ -7,6 +7,17 @@
     "integrity_pass_rate": 1.0,
     "is_data_integrity_passed": true
   },
+  "diagnostic_failed_global_model": {
+    "description": "Failed global 1-head MLP on un-normalized pooled targets (JV + QE + RESP + DETECTIVITY)",
+    "test_metrics": {
+      "mae": 4.35283832189427e+19,
+      "rmse": 4.234519540575644e+20,
+      "r2": -0.010679,
+      "nrmse": 0.077034,
+      "max_absolute_error": 5.49691318e+21,
+      "sample_count": 27174
+    }
+  },
   "regime_a_results": {
     "JV": {
       "sample_counts": {
@@ -172,15 +183,36 @@
   },
   "plots": {
     "regime_a_plots": [
-      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\training_dynamics.png",
-      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\predicted_vs_actual.png",
-      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\best_case_curve.png",
-      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\baseline_comparison.png"
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\training_dynamics_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\actual_vs_predicted_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\error_vs_x_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\error_distribution_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\baseline_comparison_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\best_case_curve_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\training_dynamics_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\actual_vs_predicted_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\error_vs_x_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\error_distribution_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\baseline_comparison_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\best_case_curve_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\training_dynamics_RESPONSIVITY.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\actual_vs_predicted_RESPONSIVITY.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\error_vs_x_RESPONSIVITY.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\error_distribution_RESPONSIVITY.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\baseline_comparison_RESPONSIVITY.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_a\\plots\\best_case_curve_RESPONSIVITY.png"
     ],
     "regime_b_plots": [
-      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\training_dynamics.png",
-      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\predicted_vs_actual.png",
-      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\regime_comparison.png"
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\training_dynamics_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\actual_vs_predicted_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\error_vs_x_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\error_distribution_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\regime_comparison_JV.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\training_dynamics_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\actual_vs_predicted_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\error_vs_x_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\error_distribution_QE.png",
+      "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\run_v1_regime_b\\plots\\regime_comparison_QE.png"
     ]
   }
 }

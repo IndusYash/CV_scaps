@@ -229,7 +229,7 @@ def execute_v1_benchmarking(base_dir: Path) -> Dict[str, Any]:
     runner = EvaluationRunner(curation_res, config)
 
     # Output Directory Setup
-    out_dir_exp = base_dir / "backend" / "app" / "ml" / "modeling" / "experiments"
+    out_dir_exp = Path(__file__).parent / "experiments"
     dir_regime_a = out_dir_exp / "run_v1_regime_a" / "plots"
     dir_regime_b = out_dir_exp / "run_v1_regime_b" / "plots"
 
@@ -267,27 +267,27 @@ def execute_v1_benchmarking(base_dir: Path) -> Dict[str, Any]:
         mlp_preds = predict_model(mlp, te_s)
         mlp_m = calculate_curve_metrics(mlp_preds, te_s.targets)
 
-        if stype == "JV":
-            plotter_a.plot_training_dynamics(tr_loss, val_loss, f"Regime A ({stype})")
-            plotter_a.plot_actual_vs_predicted_scatter(te_s.targets, mlp_preds, mlp_m.r2, mlp_m.mae, f"Regime A ({stype})")
+        # Plots for each scientific type in Regime A
+        plotter_a.plot_training_dynamics(tr_loss, val_loss, scientific_type=stype, regime_name="Regime A")
+        plotter_a.plot_actual_vs_predicted_scatter(te_s.targets, mlp_preds, mlp_m.r2, mlp_m.mae, scientific_type=stype, regime_name="Regime A")
 
-            if len(te_s) > 0:
-                sample_rec = te_s.records[0]
-                s_idx = [i for i, r in enumerate(te_s.records) if r.dataset_id == sample_rec.dataset_id]
-                if s_idx:
-                    x_vals = [te_s.records[i].x for i in s_idx]
-                    act_y = [te_s.targets[i] for i in s_idx]
-                    pred_mlp_y = [mlp_preds[i] for i in s_idx]
-                    pred_mean_y = [mean_preds[i] for i in s_idx]
-                    pred_linear_y = [lin_preds[i] for i in s_idx]
+        x_coords = [r.x for r in te_s.records]
+        plotter_a.plot_error_vs_x(x_coords, te_s.targets, mlp_preds, scientific_type=stype, regime_name="Regime A")
+        plotter_a.plot_error_distribution(te_s.targets, mlp_preds, scientific_type=stype, regime_name="Regime A")
+        plotter_a.plot_baseline_comparison(mean_m.to_dict(), lin_m.to_dict(), mlp_m.to_dict(), scientific_type=stype, regime_name="Regime A")
 
-                    ds_m = calculate_curve_metrics(pred_mlp_y, act_y)
-                    plotter_a.plot_curve_reconstruction(
-                        x_vals, act_y, pred_mlp_y, stype, sample_rec.material, sample_rec.dataset_id, ds_m.mae, ds_m.r2, "best", "Regime A"
-                    )
-                    plotter_a.plot_baseline_comparison(
-                        x_vals, act_y, pred_mean_y, pred_linear_y, pred_mlp_y, stype, "Regime A"
-                    )
+        if len(te_s) > 0:
+            sample_rec = te_s.records[0]
+            s_idx = [i for i, r in enumerate(te_s.records) if r.dataset_id == sample_rec.dataset_id]
+            if s_idx:
+                x_vals = [te_s.records[i].x for i in s_idx]
+                act_y = [te_s.targets[i] for i in s_idx]
+                pred_mlp_y = [mlp_preds[i] for i in s_idx]
+
+                ds_m = calculate_curve_metrics(pred_mlp_y, act_y)
+                plotter_a.plot_curve_reconstruction(
+                    x_vals, act_y, pred_mlp_y, stype, sample_rec.material, sample_rec.dataset_id, ds_m.mae, ds_m.r2, "best", "Regime A", "SolarSurrogateMLP"
+                )
 
         regime_a_results[stype] = {
             "sample_counts": {"train": len(tr_s), "val": len(val_s), "test": len(te_s)},
@@ -327,13 +327,17 @@ def execute_v1_benchmarking(base_dir: Path) -> Dict[str, Any]:
         mlp_preds = predict_model(mlp, te_s)
         mlp_m = calculate_curve_metrics(mlp_preds, te_s.targets)
 
-        if stype == "JV":
-            plotter_b.plot_training_dynamics(tr_loss, val_loss, f"Regime B ({stype})")
-            plotter_b.plot_actual_vs_predicted_scatter(te_s.targets, mlp_preds, mlp_m.r2, mlp_m.mae, f"Regime B ({stype})")
-            if stype in regime_a_results:
-                plotter_b.plot_regime_comparison_bar(
-                    regime_a_results[stype]["solar_mlp_neural"], mlp_m.to_dict()
-                )
+        plotter_b.plot_training_dynamics(tr_loss, val_loss, scientific_type=stype, regime_name="Regime B")
+        plotter_b.plot_actual_vs_predicted_scatter(te_s.targets, mlp_preds, mlp_m.r2, mlp_m.mae, scientific_type=stype, regime_name="Regime B")
+
+        x_coords = [r.x for r in te_s.records]
+        plotter_b.plot_error_vs_x(x_coords, te_s.targets, mlp_preds, scientific_type=stype, regime_name="Regime B")
+        plotter_b.plot_error_distribution(te_s.targets, mlp_preds, scientific_type=stype, regime_name="Regime B")
+
+        if stype in regime_a_results:
+            plotter_b.plot_regime_comparison_bar(
+                regime_a_results[stype]["solar_mlp_neural"], mlp_m.to_dict(), scientific_type=stype
+            )
 
         regime_b_results[stype] = {
             "sample_counts": {"train": len(tr_s), "test": len(te_s)},
@@ -349,7 +353,12 @@ def execute_v1_benchmarking(base_dir: Path) -> Dict[str, Any]:
     val_jv = val_a.filter_by_scientific_types(["JV"])
     sanity_res = run_sanity_checks(tr_jv, val_jv, config)
 
-    # Success Assessment
+    # Diagnostic Un-normalized Global Model Result Preservation (Rule 5)
+    # Re-run global 1-head MLP to preserve diagnostic failure finding in results JSON
+    global_mlp, _, _ = train_pytorch_mlp(train_a, val_a, config)
+    global_preds = predict_model(global_mlp, test_a)
+    global_mlp_metrics = calculate_curve_metrics(global_preds, test_a.targets)
+
     beats_mean_jv = regime_a_results["JV"]["solar_mlp_neural"]["rmse"] < regime_a_results["JV"]["baseline_mean"]["rmse"]
     beats_linear_jv = regime_a_results["JV"]["solar_mlp_neural"]["rmse"] < regime_a_results["JV"]["baseline_linear"]["rmse"]
     is_v1_successful = beats_mean_jv and beats_linear_jv and sanity_res["is_sanity_check_passed"]
@@ -358,6 +367,10 @@ def execute_v1_benchmarking(base_dir: Path) -> Dict[str, Any]:
         "is_v1_successful": is_v1_successful,
         "verdict": "V1 BASELINE SUCCESSFUL" if is_v1_successful else "V1 FAILED / NEEDS REVISION",
         "data_integrity": integrity_report,
+        "diagnostic_failed_global_model": {
+            "description": "Failed global 1-head MLP on un-normalized pooled targets (JV + QE + RESP + DETECTIVITY)",
+            "test_metrics": global_mlp_metrics.to_dict(),
+        },
         "regime_a_results": regime_a_results,
         "regime_b_results": regime_b_results,
         "sanity_checks": sanity_res,
@@ -377,4 +390,4 @@ def execute_v1_benchmarking(base_dir: Path) -> Dict[str, Any]:
 if __name__ == "__main__":
     base = Path(r"C:\Users\yashv\Desktop\REPOS\Solar_Project\solar_platform")
     res = execute_v1_benchmarking(base)
-    print("V1 Execution Complete. Verdict:", res["verdict"])
+    print("V1 Benchmarking Complete. Verdict:", res["verdict"])
