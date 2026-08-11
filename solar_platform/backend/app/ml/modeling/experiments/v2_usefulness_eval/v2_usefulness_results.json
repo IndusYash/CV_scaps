@@ -1,0 +1,176 @@
+{
+  "verdict": "NOT_YET_USEFUL",
+  "is_useful_for_photovoltaics": false,
+  "data_integrity": {
+    "total_records": 116480,
+    "verified_traceable_records": 116480,
+    "integrity_pass_rate": 1.0,
+    "is_data_integrity_passed": true
+  },
+  "photovoltaic_parameter_errors": {
+    "JV": {
+      "j_sc_mae": 23.845,
+      "j_sc_mape": 83.33,
+      "v_oc_mae": 0.015,
+      "v_oc_mape": 1.39,
+      "ff_mae": 0.6246,
+      "ff_mape": 83.33,
+      "pce_mae": 41.4726,
+      "pce_mape": 100.0
+    }
+  },
+  "evaluation_by_scientific_type": {
+    "JV": {
+      "sample_counts": {
+        "train": 2564,
+        "in_domain_test": 373,
+        "interpolation_test": 373,
+        "extrapolation_test": 0,
+        "cross_material_holdout": 603
+      },
+      "in_domain_test_metrics": {
+        "mae": 21.228565,
+        "rmse": 28.074804,
+        "r2": -1.242885,
+        "nrmse": 0.173463,
+        "max_absolute_error": 118.764343,
+        "sample_count": 373
+      },
+      "interpolation_test_metrics": {
+        "mae": 21.228565,
+        "rmse": 28.074804,
+        "r2": -1.242885,
+        "nrmse": 0.173463,
+        "max_absolute_error": 118.764343,
+        "sample_count": 373
+      },
+      "extrapolation_test_metrics": {
+        "mae": 21.228565,
+        "rmse": 28.074804,
+        "r2": -1.242885,
+        "nrmse": 0.173463,
+        "max_absolute_error": 118.764343,
+        "sample_count": 373
+      },
+      "cross_material_holdout_metrics": {
+        "mae": 12.385118,
+        "rmse": 17.431362,
+        "r2": -1.002636,
+        "nrmse": 0.413471,
+        "max_absolute_error": 37.144409,
+        "sample_count": 603
+      }
+    },
+    "QE": {
+      "sample_counts": {
+        "train": 68623,
+        "in_domain_test": 23985,
+        "interpolation_test": 23711,
+        "extrapolation_test": 274,
+        "cross_material_holdout": 22082
+      },
+      "in_domain_test_metrics": {
+        "mae": 14.410781,
+        "rmse": 31.009557,
+        "r2": -0.275453,
+        "nrmse": 0.309358,
+        "max_absolute_error": 100.2378,
+        "sample_count": 23985
+      },
+      "interpolation_test_metrics": {
+        "mae": 14.489321,
+        "rmse": 31.116461,
+        "r2": -0.276858,
+        "nrmse": 0.310425,
+        "max_absolute_error": 100.2378,
+        "sample_count": 23711
+      },
+      "extrapolation_test_metrics": {
+        "mae": 7.614194,
+        "rmse": 19.668664,
+        "r2": -0.176281,
+        "nrmse": 0.320971,
+        "max_absolute_error": 61.27838,
+        "sample_count": 274
+      },
+      "cross_material_holdout_metrics": {
+        "mae": 13.043995,
+        "rmse": 27.772471,
+        "r2": -0.283024,
+        "nrmse": 0.280734,
+        "max_absolute_error": 98.92756,
+        "sample_count": 22082
+      }
+    },
+    "RESPONSIVITY": {
+      "sample_counts": {
+        "train": 1944,
+        "in_domain_test": 1011,
+        "interpolation_test": 101,
+        "extrapolation_test": 910,
+        "cross_material_holdout": 0
+      },
+      "in_domain_test_metrics": {
+        "mae": 0.392828,
+        "rmse": 0.477107,
+        "r2": -2.104731,
+        "nrmse": 0.101836,
+        "max_absolute_error": 4.685046,
+        "sample_count": 1011
+      },
+      "interpolation_test_metrics": {
+        "mae": 0.489458,
+        "rmse": 0.797566,
+        "r2": -0.604145,
+        "nrmse": 0.170237,
+        "max_absolute_error": 4.685046,
+        "sample_count": 101
+      },
+      "extrapolation_test_metrics": {
+        "mae": 0.382103,
+        "rmse": 0.426959,
+        "r2": -4.023033,
+        "nrmse": 0.607945,
+        "max_absolute_error": 0.702299,
+        "sample_count": 910
+      },
+      "cross_material_holdout_metrics": {
+        "mae": 0.392828,
+        "rmse": 0.477107,
+        "r2": -2.104731,
+        "nrmse": 0.101836,
+        "max_absolute_error": 4.685046,
+        "sample_count": 1011
+      }
+    }
+  },
+  "physical_sanity_checks": {
+    "JV": {
+      "total_points_evaluated": 373,
+      "nan_inf_count": 0,
+      "out_of_range_count": 0,
+      "discontinuity_count": 0,
+      "invalid_pv_param_count": 0,
+      "is_physically_sane": true,
+      "sanity_pass_rate": 1.0
+    },
+    "QE": {
+      "total_points_evaluated": 23985,
+      "nan_inf_count": 0,
+      "out_of_range_count": 0,
+      "discontinuity_count": 0,
+      "invalid_pv_param_count": 0,
+      "is_physically_sane": true,
+      "sanity_pass_rate": 1.0
+    },
+    "RESPONSIVITY": {
+      "total_points_evaluated": 1011,
+      "nan_inf_count": 0,
+      "out_of_range_count": 0,
+      "discontinuity_count": 0,
+      "invalid_pv_param_count": 0,
+      "is_physically_sane": true,
+      "sanity_pass_rate": 1.0
+    }
+  }
+}
