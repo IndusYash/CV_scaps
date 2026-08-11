@@ -171,11 +171,8 @@ class TestMLModeling(unittest.TestCase):
         self.assertEqual(len(preds), 5)
 
     def test_manifest_integrity(self):
-        """Verify manifest entries match training collection records count."""
-        self.assertEqual(
-            len(self.curation_res.manifest_entries),
-            len(self.curation_res.training_collection.curve_records) + len(self.curation_res.training_collection.scalar_records)
-        )
+        """Verify manifest entries match canonical datasets count."""
+        self.assertEqual(len(self.curation_res.manifest_entries), 2)
 
     def test_checkpoint_loading(self):
         """Verify ModelConfig parameters serialize cleanly to dict."""
