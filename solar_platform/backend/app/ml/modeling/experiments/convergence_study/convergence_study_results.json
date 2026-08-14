@@ -1,0 +1,602 @@
+{
+  "study_description": "Controlled V2 Training Convergence Study across 3 patience/epoch configurations",
+  "data_integrity": {
+    "total_records": 116480,
+    "verified_traceable_records": 116480,
+    "integrity_pass_rate": 1.0,
+    "is_data_integrity_passed": true
+  },
+  "experiments": {
+    "exp1_baseline": {
+      "name": "Experiment 1 \u2014 Current Baseline",
+      "description": "Baseline config: max_epochs=100, early_stopping_patience=15",
+      "checkpoint_manifest_sha256": "4cb85d3bf57ec295b84b8b7b90ac743ad5a84025da444ec534462ae568b2c593",
+      "training_stats": {
+        "JV": {
+          "best_val_epoch": 15,
+          "final_epoch": 30,
+          "best_val_loss": 0.23215271532535553,
+          "final_train_loss": 0.25267050483010034,
+          "final_val_loss": 0.3077027201652527
+        },
+        "QE": {
+          "best_val_epoch": 8,
+          "final_epoch": 23,
+          "best_val_loss": 0.6334300637245178,
+          "final_train_loss": 0.32456266774785564,
+          "final_val_loss": 0.6577454805374146
+        },
+        "RESPONSIVITY": {
+          "best_val_epoch": 74,
+          "final_epoch": 89,
+          "best_val_loss": 0.038857631385326385,
+          "final_train_loss": 0.0040707148727960885,
+          "final_val_loss": 0.05199631676077843
+        }
+      },
+      "regime_a_evaluation": {
+        "JV": {
+          "n_test": 373,
+          "metrics": {
+            "mae": 9.54765,
+            "rmse": 14.463903,
+            "r2": 0.404688,
+            "nrmse": 0.089367,
+            "max_absolute_error": 112.212571,
+            "sample_count": 373
+          },
+          "interpolation_metrics": {
+            "mae": 9.54765,
+            "rmse": 14.463903,
+            "r2": 0.404688,
+            "nrmse": 0.089367,
+            "max_absolute_error": 112.212571,
+            "sample_count": 373
+          },
+          "baseline_mean_r2": -0.015687823597950956,
+          "baseline_linear_r2": 0.30112847014300737,
+          "physical_sanity": {
+            "total_points_evaluated": 373,
+            "nan_inf_count": 0,
+            "out_of_range_count": 0,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 1.0
+          }
+        },
+        "QE": {
+          "n_test": 23985,
+          "metrics": {
+            "mae": 14.81655,
+            "rmse": 25.488637,
+            "r2": 0.138279,
+            "nrmse": 0.25428,
+            "max_absolute_error": 98.762227,
+            "sample_count": 23985
+          },
+          "interpolation_metrics": {
+            "mae": 14.677665,
+            "rmse": 25.261042,
+            "r2": 0.15848,
+            "nrmse": 0.25201,
+            "max_absolute_error": 98.762227,
+            "sample_count": 23711
+          },
+          "baseline_mean_r2": -0.06256914498732336,
+          "baseline_linear_r2": -0.00024347054797480006,
+          "physical_sanity": {
+            "total_points_evaluated": 23985,
+            "nan_inf_count": 0,
+            "out_of_range_count": 102,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 0.9957
+          }
+        },
+        "RESPONSIVITY": {
+          "n_test": 1011,
+          "metrics": {
+            "mae": 0.099895,
+            "rmse": 0.242337,
+            "r2": 0.198998,
+            "nrmse": 0.051726,
+            "max_absolute_error": 4.680837,
+            "sample_count": 1011
+          },
+          "interpolation_metrics": {
+            "mae": 0.099895,
+            "rmse": 0.242337,
+            "r2": 0.198998,
+            "nrmse": 0.051726,
+            "max_absolute_error": 4.680837,
+            "sample_count": 1011
+          },
+          "baseline_mean_r2": -0.004746917653172034,
+          "baseline_linear_r2": -0.0380797469188523,
+          "physical_sanity": {
+            "total_points_evaluated": 1011,
+            "nan_inf_count": 0,
+            "out_of_range_count": 0,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 1.0
+          }
+        }
+      },
+      "regime_b_evaluation": {
+        "JV": {
+          "n_test": 603,
+          "metrics": {
+            "mae": 8.310201,
+            "rmse": 10.681664,
+            "r2": 0.248001,
+            "nrmse": 0.253368,
+            "max_absolute_error": 25.724163,
+            "sample_count": 603
+          }
+        },
+        "QE": {
+          "n_test": 22082,
+          "metrics": {
+            "mae": 14.910805,
+            "rmse": 23.948825,
+            "r2": 0.045943,
+            "nrmse": 0.242083,
+            "max_absolute_error": 71.572651,
+            "sample_count": 22082
+          }
+        }
+      },
+      "jv_detailed_diagnostics": {
+        "j_at_v0": {
+          "actual_mean": 23.845011769758333,
+          "predicted_mean": 18.28070913947445,
+          "actual_values": [
+            48.349,
+            13.5351,
+            10.6991,
+            38.4029,
+            32.084,
+            0.0
+          ],
+          "predicted_values": [
+            35.3044,
+            13.972,
+            5.5349,
+            38.4991,
+            8.187,
+            8.187
+          ]
+        },
+        "current_density_range": {
+          "pred_min": 3.5564868706283477,
+          "pred_max": 38.68892224475292,
+          "pred_mean": 16.23831056142186,
+          "pred_std": 12.462440798144282,
+          "act_min": -43.0847498,
+          "act_max": 118.764343,
+          "act_mean": 20.899151899551462,
+          "act_std": 18.746200865818942
+        },
+        "pv_parameters": {
+          "num_curves": 6,
+          "actual_jsc_mean": 23.845016666666666,
+          "predicted_jsc_mean": 18.280733333333334,
+          "actual_voc_mean": 1.1287166666666668,
+          "predicted_voc_mean": 1.14375,
+          "actual_ff_mean": 0.6246166666666667,
+          "predicted_ff_mean": 0.8070833333333333,
+          "actual_pce_mean": 41.47258333333333,
+          "predicted_pce_mean": 17.511350000000004,
+          "errors": {
+            "j_sc_mae": 8.471,
+            "j_sc_mape": 136475.53,
+            "v_oc_mae": 0.015,
+            "v_oc_mape": 1.39,
+            "ff_mae": 0.2129,
+            "ff_mape": 13350.27,
+            "pce_mae": 27.9128,
+            "pce_mape": 53.17
+          }
+        }
+      }
+    },
+    "exp2_increased_patience": {
+      "name": "Experiment 2 \u2014 Increased Patience",
+      "description": "Extended patience: max_epochs=150, early_stopping_patience=50",
+      "checkpoint_manifest_sha256": "dddde74ea9b66a8ab4f4a29112eac14fce5322ce3c8e097e4cbf9527e39adb07",
+      "training_stats": {
+        "JV": {
+          "best_val_epoch": 87,
+          "final_epoch": 137,
+          "best_val_loss": 0.2134496122598648,
+          "final_train_loss": 0.16306579678150063,
+          "final_val_loss": 0.23307329416275024
+        },
+        "QE": {
+          "best_val_epoch": 36,
+          "final_epoch": 86,
+          "best_val_loss": 0.6196100115776062,
+          "final_train_loss": 0.3106939302390393,
+          "final_val_loss": 0.6811293363571167
+        },
+        "RESPONSIVITY": {
+          "best_val_epoch": 74,
+          "final_epoch": 124,
+          "best_val_loss": 0.038857631385326385,
+          "final_train_loss": 0.0023720506578683853,
+          "final_val_loss": 0.05702930688858032
+        }
+      },
+      "regime_a_evaluation": {
+        "JV": {
+          "n_test": 373,
+          "metrics": {
+            "mae": 9.508032,
+            "rmse": 13.654534,
+            "r2": 0.469449,
+            "nrmse": 0.084366,
+            "max_absolute_error": 110.859519,
+            "sample_count": 373
+          },
+          "interpolation_metrics": {
+            "mae": 9.508032,
+            "rmse": 13.654534,
+            "r2": 0.469449,
+            "nrmse": 0.084366,
+            "max_absolute_error": 110.859519,
+            "sample_count": 373
+          },
+          "baseline_mean_r2": -0.015687823597950956,
+          "baseline_linear_r2": 0.30112847014300737,
+          "physical_sanity": {
+            "total_points_evaluated": 373,
+            "nan_inf_count": 0,
+            "out_of_range_count": 0,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 1.0
+          }
+        },
+        "QE": {
+          "n_test": 23985,
+          "metrics": {
+            "mae": 15.001063,
+            "rmse": 25.18779,
+            "r2": 0.158502,
+            "nrmse": 0.251279,
+            "max_absolute_error": 100.405602,
+            "sample_count": 23985
+          },
+          "interpolation_metrics": {
+            "mae": 14.873964,
+            "rmse": 25.005837,
+            "r2": 0.175397,
+            "nrmse": 0.249464,
+            "max_absolute_error": 100.405602,
+            "sample_count": 23711
+          },
+          "baseline_mean_r2": -0.06256914498732336,
+          "baseline_linear_r2": -0.00024347054797480006,
+          "physical_sanity": {
+            "total_points_evaluated": 23985,
+            "nan_inf_count": 0,
+            "out_of_range_count": 34,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 0.9986
+          }
+        },
+        "RESPONSIVITY": {
+          "n_test": 1011,
+          "metrics": {
+            "mae": 0.099895,
+            "rmse": 0.242337,
+            "r2": 0.198998,
+            "nrmse": 0.051726,
+            "max_absolute_error": 4.680837,
+            "sample_count": 1011
+          },
+          "interpolation_metrics": {
+            "mae": 0.099895,
+            "rmse": 0.242337,
+            "r2": 0.198998,
+            "nrmse": 0.051726,
+            "max_absolute_error": 4.680837,
+            "sample_count": 1011
+          },
+          "baseline_mean_r2": -0.004746917653172034,
+          "baseline_linear_r2": -0.0380797469188523,
+          "physical_sanity": {
+            "total_points_evaluated": 1011,
+            "nan_inf_count": 0,
+            "out_of_range_count": 0,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 1.0
+          }
+        }
+      },
+      "regime_b_evaluation": {
+        "JV": {
+          "n_test": 603,
+          "metrics": {
+            "mae": 8.310201,
+            "rmse": 10.681664,
+            "r2": 0.248001,
+            "nrmse": 0.253368,
+            "max_absolute_error": 25.724163,
+            "sample_count": 603
+          }
+        },
+        "QE": {
+          "n_test": 22082,
+          "metrics": {
+            "mae": 14.910805,
+            "rmse": 23.948825,
+            "r2": 0.045943,
+            "nrmse": 0.242083,
+            "max_absolute_error": 71.572651,
+            "sample_count": 22082
+          }
+        }
+      },
+      "jv_detailed_diagnostics": {
+        "j_at_v0": {
+          "actual_mean": 23.845011769758333,
+          "predicted_mean": 19.580657067443035,
+          "actual_values": [
+            48.349,
+            13.5351,
+            10.6991,
+            38.4029,
+            32.084,
+            0.0
+          ],
+          "predicted_values": [
+            33.1516,
+            17.3993,
+            5.6498,
+            36.3604,
+            12.4614,
+            12.4614
+          ]
+        },
+        "current_density_range": {
+          "pred_min": -0.5511355333107311,
+          "pred_max": 37.56209500474294,
+          "pred_mean": 17.63824085538203,
+          "pred_std": 10.930093899074773,
+          "act_min": -43.0847498,
+          "act_max": 118.764343,
+          "act_mean": 20.899151899551462,
+          "act_std": 18.746200865818942
+        },
+        "pv_parameters": {
+          "num_curves": 6,
+          "actual_jsc_mean": 23.845016666666666,
+          "predicted_jsc_mean": 19.58065,
+          "actual_voc_mean": 1.1287166666666668,
+          "predicted_voc_mean": 1.1417500000000003,
+          "actual_ff_mean": 0.6246166666666667,
+          "predicted_ff_mean": 0.74175,
+          "actual_pce_mean": 41.47258333333333,
+          "predicted_pce_mean": 16.224966666666667,
+          "errors": {
+            "j_sc_mae": 9.7062,
+            "j_sc_mape": 207718.94,
+            "v_oc_mae": 0.0138,
+            "v_oc_mape": 1.3,
+            "ff_mae": 0.1833,
+            "ff_mape": 11855.72,
+            "pce_mae": 25.7066,
+            "pce_mape": 39.98
+          }
+        }
+      }
+    },
+    "exp3_fixed_budget": {
+      "name": "Experiment 3 \u2014 Fixed Epoch Budget (150 Epochs)",
+      "description": "Full fixed budget: max_epochs=150, no early stopping, best val checkpoint",
+      "checkpoint_manifest_sha256": "32428adb147be9c514ff62306ef1ff4f468119de21d401739a611f923eedd967",
+      "training_stats": {
+        "JV": {
+          "best_val_epoch": 149,
+          "final_epoch": 150,
+          "best_val_loss": 0.19867759943008423,
+          "final_train_loss": 0.1568079868500883,
+          "final_val_loss": 0.23567509651184082
+        },
+        "QE": {
+          "best_val_epoch": 36,
+          "final_epoch": 150,
+          "best_val_loss": 0.6196100115776062,
+          "final_train_loss": 0.3237917375608891,
+          "final_val_loss": 0.6933687329292297
+        },
+        "RESPONSIVITY": {
+          "best_val_epoch": 74,
+          "final_epoch": 150,
+          "best_val_loss": 0.038857631385326385,
+          "final_train_loss": 0.0015270419826265424,
+          "final_val_loss": 0.0718010663986206
+        }
+      },
+      "regime_a_evaluation": {
+        "JV": {
+          "n_test": 373,
+          "metrics": {
+            "mae": 9.227166,
+            "rmse": 13.647886,
+            "r2": 0.469965,
+            "nrmse": 0.084325,
+            "max_absolute_error": 110.596268,
+            "sample_count": 373
+          },
+          "interpolation_metrics": {
+            "mae": 9.227166,
+            "rmse": 13.647886,
+            "r2": 0.469965,
+            "nrmse": 0.084325,
+            "max_absolute_error": 110.596268,
+            "sample_count": 373
+          },
+          "baseline_mean_r2": -0.015687823597950956,
+          "baseline_linear_r2": 0.30112847014300737,
+          "physical_sanity": {
+            "total_points_evaluated": 373,
+            "nan_inf_count": 0,
+            "out_of_range_count": 0,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 1.0
+          }
+        },
+        "QE": {
+          "n_test": 23985,
+          "metrics": {
+            "mae": 15.001063,
+            "rmse": 25.18779,
+            "r2": 0.158502,
+            "nrmse": 0.251279,
+            "max_absolute_error": 100.405602,
+            "sample_count": 23985
+          },
+          "interpolation_metrics": {
+            "mae": 14.873964,
+            "rmse": 25.005837,
+            "r2": 0.175397,
+            "nrmse": 0.249464,
+            "max_absolute_error": 100.405602,
+            "sample_count": 23711
+          },
+          "baseline_mean_r2": -0.06256914498732336,
+          "baseline_linear_r2": -0.00024347054797480006,
+          "physical_sanity": {
+            "total_points_evaluated": 23985,
+            "nan_inf_count": 0,
+            "out_of_range_count": 34,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 0.9986
+          }
+        },
+        "RESPONSIVITY": {
+          "n_test": 1011,
+          "metrics": {
+            "mae": 0.099895,
+            "rmse": 0.242337,
+            "r2": 0.198998,
+            "nrmse": 0.051726,
+            "max_absolute_error": 4.680837,
+            "sample_count": 1011
+          },
+          "interpolation_metrics": {
+            "mae": 0.099895,
+            "rmse": 0.242337,
+            "r2": 0.198998,
+            "nrmse": 0.051726,
+            "max_absolute_error": 4.680837,
+            "sample_count": 1011
+          },
+          "baseline_mean_r2": -0.004746917653172034,
+          "baseline_linear_r2": -0.0380797469188523,
+          "physical_sanity": {
+            "total_points_evaluated": 1011,
+            "nan_inf_count": 0,
+            "out_of_range_count": 0,
+            "discontinuity_count": 0,
+            "invalid_pv_param_count": 0,
+            "is_physically_sane": true,
+            "sanity_pass_rate": 1.0
+          }
+        }
+      },
+      "regime_b_evaluation": {
+        "JV": {
+          "n_test": 603,
+          "metrics": {
+            "mae": 8.310201,
+            "rmse": 10.681664,
+            "r2": 0.248001,
+            "nrmse": 0.253368,
+            "max_absolute_error": 25.724163,
+            "sample_count": 603
+          }
+        },
+        "QE": {
+          "n_test": 22082,
+          "metrics": {
+            "mae": 14.910805,
+            "rmse": 23.948825,
+            "r2": 0.045943,
+            "nrmse": 0.242083,
+            "max_absolute_error": 71.572651,
+            "sample_count": 22082
+          }
+        }
+      },
+      "jv_detailed_diagnostics": {
+        "j_at_v0": {
+          "actual_mean": 23.845011769758333,
+          "predicted_mean": 17.36364181771102,
+          "actual_values": [
+            48.349,
+            13.5351,
+            10.6991,
+            38.4029,
+            32.084,
+            0.0
+          ],
+          "predicted_values": [
+            32.0453,
+            14.8919,
+            3.7389,
+            35.9051,
+            8.8003,
+            8.8003
+          ]
+        },
+        "current_density_range": {
+          "pred_min": -3.7304696748828228,
+          "pred_max": 37.73234696729987,
+          "pred_mean": 16.153771863411542,
+          "pred_std": 11.484832602369018,
+          "act_min": -43.0847498,
+          "act_max": 118.764343,
+          "act_mean": 20.899151899551462,
+          "act_std": 18.746200865818942
+        },
+        "pv_parameters": {
+          "num_curves": 6,
+          "actual_jsc_mean": 23.845016666666666,
+          "predicted_jsc_mean": 17.36363333333333,
+          "actual_voc_mean": 1.1287166666666668,
+          "predicted_voc_mean": 1.14145,
+          "actual_ff_mean": 0.6246166666666667,
+          "predicted_ff_mean": 0.8620333333333333,
+          "actual_pce_mean": 41.47258333333333,
+          "predicted_pce_mean": 16.040133333333333,
+          "errors": {
+            "j_sc_mae": 9.8671,
+            "j_sc_mape": 146702.98,
+            "v_oc_mae": 0.0127,
+            "v_oc_mape": 1.14,
+            "ff_mae": 0.2451,
+            "ff_mape": 15578.65,
+            "pce_mae": 25.9989,
+            "pce_mape": 41.35
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "task_type": "CURVE_CONDITIONING",
+  "seed": 42,
+  "batch_size": 256,
+  "learning_rate": 0.001,
+  "weight_decay": 0.0001,
+  "epochs": 100,
+  "max_epochs": 100,
+  "early_stopping_patience": 15,
+  "huber_delta": 1.0,
+  "model_config": {
+    "model_name": "SolarCurveSurrogateMLP",
+    "input_dim": 15,
+    "hidden_dims": [
+      128,
+      128,
+      64
+    ],
+    "dropout_rate": 0.05,
+    "use_residual": true
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "is_fitted": true,
+  "param_means": {
+    "thickness": 14.842953971518773,
+    "temperature": 360.0,
+    "series_resistance": 5.784810126582278,
+    "shunt_resistance": 3.4956912498922086,
+    "defect_density": 2.2576380402177536,
+    "doping_density": 13.501415641637323,
+    "illumination_wavelength": 0.0,
+    "sweep_index": 0.0
+  },
+  "param_stds": {
+    "thickness": 30.2577544550975,
+    "temperature": 41.1808415127759,
+    "series_resistance": 3.810392914419763,
+    "shunt_resistance": 1.549429974745305,
+    "defect_density": 5.280421432404522,
+    "doping_density": 4.911355158711971,
+    "illumination_wavelength": 1.0,
+    "sweep_index": 1.0
+  },
+  "known_materials": [
+    "Ca3PI3",
+    "Ca3PBr3",
+    "Ca3AsBr3",
+    "Data File (1)",
+    "Data file",
+    "SolarDevice_DataFile"
+  ],
+  "known_parameters": [
+    "thickness",
+    "temperature",
+    "series_resistance",
+    "shunt_resistance",
+    "defect_density",
+    "doping_density",
+    "illumination_wavelength",
+    "sweep_index"
+  ],
+  "log_transform_parameters": [
+    "defect_density",
+    "doping_density",
+    "shunt_resistance"
+  ]
+}

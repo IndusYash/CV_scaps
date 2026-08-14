@@ -87,8 +87,9 @@ def categorize_interpolation_vs_extrapolation(
         else:
             interp_records.append(r)
 
-    interp_ds = CurvePointDataset(interp_records, eval_ds.preprocessor)
-    extrap_ds = CurvePointDataset(extrap_records, eval_ds.preprocessor)
+    prep = eval_ds.preprocessor if eval_ds.preprocessor is not None else train_ds.preprocessor
+    interp_ds = CurvePointDataset(interp_records, prep)
+    extrap_ds = CurvePointDataset(extrap_records, prep)
     return interp_ds, extrap_ds
 
 
