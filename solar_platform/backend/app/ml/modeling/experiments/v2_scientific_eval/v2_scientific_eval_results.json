@@ -1,0 +1,275 @@
+{
+  "verdict": "NOT_YET_USEFUL",
+  "verdict_reason": "Fails usefulness thresholds: R\u00b2=0.405 < 0.50 or predictions not physically sane.",
+  "checkpoint_verification": {
+    "real_checkpoint_loaded": true,
+    "checkpoint_dir": "C:\\Users\\yashv\\Desktop\\REPOS\\Solar_Project\\solar_platform\\backend\\app\\ml\\modeling\\experiments\\v2_scientific_eval_checkpoint",
+    "manifest_sha256": "4cb85d3bf57ec295b84b8b7b90ac743ad5a84025da444ec534462ae568b2c593",
+    "preprocessor_sha256": "cae222aae886779805051e0e62a2bec5e91d34cbeff59b8fd44b0d679f36f241",
+    "normalizer_sha256": "d62c37523d50e4b8bbb2d1f7ee5bb1a448f8e87ba2c26ee4cb790e927ca1e80b",
+    "num_parameters": 66120,
+    "architecture": {
+      "param_dim": 14,
+      "num_fourier_freqs": 8,
+      "fourier_dim": 16,
+      "hidden_dims": [
+        128,
+        128
+      ],
+      "diode_head_physics": "Shockley Equation + Neural Residual"
+    },
+    "inference_mode": "RELOADED_CHECKPOINT_SHA256_VERIFIED",
+    "roundtrip_max_delta": 0.0,
+    "roundtrip_pass": true
+  },
+  "data_integrity": {
+    "total_records": 116480,
+    "verified_traceable_records": 116480,
+    "integrity_pass_rate": 1.0,
+    "is_data_integrity_passed": true
+  },
+  "regime_a_evaluation": {
+    "JV": {
+      "n_train": 2564,
+      "n_test": 373,
+      "non_zero_predictions": 373,
+      "baseline_mean": {
+        "mae": 17.002433,
+        "rmse": 18.892672,
+        "r2": -0.015688,
+        "nrmse": 0.11673,
+        "max_absolute_error": 95.51721,
+        "sample_count": 373
+      },
+      "baseline_linear": {
+        "mae": 12.482921,
+        "rmse": 15.67155,
+        "r2": 0.301128,
+        "nrmse": 0.096828,
+        "max_absolute_error": 103.751235,
+        "sample_count": 373
+      },
+      "v1_dedicated_mlp": {
+        "mae": 10.947721,
+        "rmse": 15.363318,
+        "r2": 0.328349,
+        "nrmse": 0.094924,
+        "max_absolute_error": 112.687279,
+        "sample_count": 373
+      },
+      "v2_physics_multihead": {
+        "mae": 9.54765,
+        "rmse": 14.463903,
+        "r2": 0.404688,
+        "nrmse": 0.089367,
+        "max_absolute_error": 112.212571,
+        "sample_count": 373
+      },
+      "beats_v1_in_r2": true,
+      "beats_mean_in_r2": true,
+      "physical_sanity": {
+        "total_points_evaluated": 373,
+        "nan_inf_count": 0,
+        "out_of_range_count": 0,
+        "discontinuity_count": 0,
+        "invalid_pv_param_count": 0,
+        "is_physically_sane": true,
+        "sanity_pass_rate": 1.0
+      }
+    },
+    "QE": {
+      "n_train": 68623,
+      "n_test": 23985,
+      "non_zero_predictions": 23985,
+      "baseline_mean": {
+        "mae": 25.340664,
+        "rmse": 28.30362,
+        "r2": -0.062569,
+        "nrmse": 0.282363,
+        "max_absolute_error": 78.958832,
+        "sample_count": 23985
+      },
+      "baseline_linear": {
+        "mae": 24.503093,
+        "rmse": 27.460994,
+        "r2": -0.000243,
+        "nrmse": 0.273957,
+        "max_absolute_error": 77.797181,
+        "sample_count": 23985
+      },
+      "v1_dedicated_mlp": {
+        "mae": 14.186973,
+        "rmse": 29.897462,
+        "r2": -0.18561,
+        "nrmse": 0.298264,
+        "max_absolute_error": 99.612711,
+        "sample_count": 23985
+      },
+      "v2_physics_multihead": {
+        "mae": 14.81655,
+        "rmse": 25.488637,
+        "r2": 0.138279,
+        "nrmse": 0.25428,
+        "max_absolute_error": 98.762227,
+        "sample_count": 23985
+      },
+      "beats_v1_in_r2": true,
+      "beats_mean_in_r2": true,
+      "physical_sanity": {
+        "total_points_evaluated": 23985,
+        "nan_inf_count": 0,
+        "out_of_range_count": 102,
+        "discontinuity_count": 0,
+        "invalid_pv_param_count": 0,
+        "is_physically_sane": true,
+        "sanity_pass_rate": 0.9957
+      }
+    },
+    "RESPONSIVITY": {
+      "n_train": 1944,
+      "n_test": 1011,
+      "non_zero_predictions": 1011,
+      "baseline_mean": {
+        "mae": 0.165371,
+        "rmse": 0.271414,
+        "r2": -0.004747,
+        "nrmse": 0.057932,
+        "max_absolute_error": 4.273563,
+        "sample_count": 1011
+      },
+      "baseline_linear": {
+        "mae": 0.163619,
+        "rmse": 0.275879,
+        "r2": -0.03808,
+        "nrmse": 0.058885,
+        "max_absolute_error": 4.272731,
+        "sample_count": 1011
+      },
+      "v1_dedicated_mlp": {
+        "mae": 0.294428,
+        "rmse": 0.400803,
+        "r2": -1.19106,
+        "nrmse": 0.085549,
+        "max_absolute_error": 4.496111,
+        "sample_count": 1011
+      },
+      "v2_physics_multihead": {
+        "mae": 0.099895,
+        "rmse": 0.242337,
+        "r2": 0.198998,
+        "nrmse": 0.051726,
+        "max_absolute_error": 4.680837,
+        "sample_count": 1011
+      },
+      "beats_v1_in_r2": true,
+      "beats_mean_in_r2": true,
+      "physical_sanity": {
+        "total_points_evaluated": 1011,
+        "nan_inf_count": 0,
+        "out_of_range_count": 0,
+        "discontinuity_count": 0,
+        "invalid_pv_param_count": 0,
+        "is_physically_sane": true,
+        "sanity_pass_rate": 1.0
+      }
+    }
+  },
+  "regime_b_evaluation": {
+    "JV": {
+      "n_train": 2577,
+      "n_test": 603,
+      "baseline_mean": {
+        "mae": 16.572149,
+        "rmse": 18.622855,
+        "r2": -1.285766,
+        "nrmse": 0.441733,
+        "max_absolute_error": 31.315447,
+        "sample_count": 603
+      },
+      "v2_physics_multihead": {
+        "mae": 8.310201,
+        "rmse": 10.681664,
+        "r2": 0.248001,
+        "nrmse": 0.253368,
+        "max_absolute_error": 25.724163,
+        "sample_count": 603
+      }
+    },
+    "QE": {
+      "n_train": 81170,
+      "n_test": 22082,
+      "baseline_mean": {
+        "mae": 25.481365,
+        "rmse": 26.671236,
+        "r2": -0.183293,
+        "nrmse": 0.269602,
+        "max_absolute_error": 75.386508,
+        "sample_count": 22082
+      },
+      "v2_physics_multihead": {
+        "mae": 14.910805,
+        "rmse": 23.948825,
+        "r2": 0.045943,
+        "nrmse": 0.242083,
+        "max_absolute_error": 71.572651,
+        "sample_count": 22082
+      }
+    }
+  },
+  "interpolation_vs_extrapolation": {
+    "JV": {
+      "n_interp": 373,
+      "n_extrap": 0,
+      "mae": 9.54765,
+      "rmse": 14.463903,
+      "r2": 0.404688,
+      "nrmse": 0.089367,
+      "max_absolute_error": 112.212571,
+      "sample_count": 373
+    },
+    "QE": {
+      "n_interp": 23711,
+      "n_extrap": 274,
+      "mae": 14.677665,
+      "rmse": 25.261042,
+      "r2": 0.15848,
+      "nrmse": 0.25201,
+      "max_absolute_error": 98.762227,
+      "sample_count": 23711
+    },
+    "RESPONSIVITY": {
+      "n_interp": 1011,
+      "n_extrap": 0,
+      "mae": 0.099895,
+      "rmse": 0.242337,
+      "r2": 0.198998,
+      "nrmse": 0.051726,
+      "max_absolute_error": 4.680837,
+      "sample_count": 1011
+    }
+  },
+  "photovoltaic_parameter_errors": {
+    "Regime_A": {
+      "n_jv_datasets": 6,
+      "jsc_mae": 8.471,
+      "jsc_mape": 136475.53,
+      "voc_mae": 0.015,
+      "voc_mape": 1.39,
+      "ff_mae": 0.2129,
+      "ff_mape": 13350.27,
+      "pce_mae": 27.9128,
+      "pce_mape": 53.17
+    },
+    "Regime_B": {
+      "n_jv_datasets": 7,
+      "jsc_mae": 6.6718,
+      "jsc_mape": 122661.35,
+      "voc_mae": 0.0119,
+      "voc_mape": 0.92,
+      "ff_mae": 0.3158,
+      "ff_mape": 14307.48,
+      "pce_mae": 6.137,
+      "pce_mape": 5946.9
+    }
+  }
+}
