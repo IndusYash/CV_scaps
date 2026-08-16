@@ -26,7 +26,7 @@ def _derive_parameter_name(sheet_name: str, raw_text: Optional[str], unit: Optio
     s_lower = sheet_name.lower()
     if "thick" in s_lower or "pvk" in s_lower or "etl" in s_lower:
         return "thickness"
-    if "temp" in s_lower or "t (" in s_lower or "t(" in s_lower or "k" in s_lower:
+    if "temp" in s_lower or "t (" in s_lower or "t(" in s_lower or re.search(r"\b(t|k)\b", s_lower):
         return "temperature"
     if "idd" in s_lower or "defect" in s_lower:
         return "defect_density"
@@ -34,7 +34,7 @@ def _derive_parameter_name(sheet_name: str, raw_text: Optional[str], unit: Optio
         return "series_resistance"
     if "rsh" in s_lower:
         return "shunt_resistance"
-    if "na" in s_lower or "doping" in s_lower:
+    if re.search(r"\b(na|n_a|acceptor|doping|donor)\b", s_lower) or "doping" in s_lower:
         return "doping_density"
     if "illum" in s_lower or "light" in s_lower:
         return "illumination"
@@ -43,7 +43,17 @@ def _derive_parameter_name(sheet_name: str, raw_text: Optional[str], unit: Optio
         r_lower = raw_text.lower()
         if "nm" in r_lower or "um" in r_lower:
             return "thickness"
-        if "k" in r_lower or "deg" in r_lower or "c" in r_lower:
+        # Narrow temperature mapping: Celsius/Kelvin and boundary checks
+        if (
+            "kelvin" in r_lower 
+            or "celsius" in r_lower 
+            or "deg c" in r_lower 
+            or "°c" in r_lower 
+            or re.search(r"\bdeg\b", r_lower)
+            or re.search(r"\b(temp|temperature)\b", r_lower)
+            or re.search(r"\b\d+\s*k\b", r_lower)
+            or re.search(r"\b(t|k)\b", r_lower)
+        ):
             return "temperature"
         if "ohm" in r_lower:
             return "resistance"

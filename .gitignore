@@ -25,3 +25,35 @@ build/
 
 # Temporary uploads & outputs
 solar_platform/backend/app/uploads/
+
+# Excel Workbooks
+*.xlsx
+solar_platform/Data_file.xlsx
+solar_platform/Data file.xlsx
+solar_platform/Ca3PI3.xlsx
+solar_platform/Ca3PBr3.xlsx
+solar_platform/Ca3AsBr3.xlsx
+solar_platform/Data File (1).xlsx
+
+# SQLite Database files
+*.db
+*.sqlite
+*.sqlite3
+solar_platform/backend/solar.db
+solar_platform/backend/solar_platform.db
+
+# Temporary diagnostic logs & files
+solar_platform/backend/forensic_qe_comparison.json
+solar_platform/backend/v1_ml_dataset_audit.md
+solar_platform/backend/scratch/
+solar_platform/backend/app/tests/inspect_*.py
+solar_platform/backend/app/tests/forensic_*.py
+solar_platform/backend/app/tests/read_*.py
+solar_platform/backend/app/tests/trace_*.py
+solar_platform/backend/app/tests/verify_*.py
+solar_platform/backend/app/tests/print_*.py
+solar_platform/backend/app/tests/run_*.py
+solar_platform/backend/app/tests/list_*.py
+solar_platform/backend/app/tests/search_*.py
+
+

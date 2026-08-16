@@ -47,6 +47,10 @@ _PARSED_DATA_STORE: Dict[str, Dict[str, Dict[str, pd.DataFrame]]] = {}
 _PIPELINE = UnifiedParserPipeline()
 _GROUPER = ExperimentGrouperEngine()
 
+# Global cache for classical RandomForest regressor results
+_GLOBAL_RF_METRICS: Dict[str, Any] = {}
+_GLOBAL_RF_PREDICTIONS: Dict[str, Any] = {}
+
 HUMAN_LABELS = {
     "JV": "Current-Voltage (J-V) Characteristic",
     "QE": "Quantum Efficiency (QE) Spectrum",
@@ -75,6 +79,12 @@ async def upload_file(file: UploadFile = File(...)):
         )
         _PARSED_DATA_STORE[file_id] = parsed_data
         register_parsed_experiments(file_id, audit_result)
+
+        # Persist to SQLite persistent DB and extract PV parameters automatically
+        from app.database import db_manager
+        await run_in_threadpool(
+            db_manager.parse_and_persist_workbook_bytes, file.filename, contents
+        )
 
         # Fallback raw pandas sheets for legacy compatibility
         if filename_lower.endswith((".xlsx", ".xls")):
@@ -148,7 +158,7 @@ async def upload_file(file: UploadFile = File(...)):
                     ExperimentSummary(
                         experiment_id=exp.experiment_id,
                         sheet_name=exp.sheet_name,
-                        semantic_type=exp.target_name,
+                        semantic_type=exp.semantic_type,
                         human_label=human_lbl,
                         axis_name=exp.axis_name,
                         axis_unit=exp.axis_unit,
@@ -346,7 +356,7 @@ async def get_curves(req: TrainRequest):
             ExperimentPayload(
                 experiment_id=exp.experiment_id,
                 sheet_name=exp.sheet_name,
-                semantic_type=exp.target_name,
+                semantic_type=exp.semantic_type,
                 human_label=human_lbl,
                 axis={"name": exp.axis_name, "unit": exp.axis_unit},
                 target={"name": exp.target_name, "unit": exp.target_unit},
@@ -417,3 +427,182 @@ async def predict_curve_endpoint(req: CurvePredictRequest):
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Curve comparison failed: {str(exc)}")
+
+
+# --- V1 Persistent Database & Classical ML Endpoints ---
+
+@router.get("/database/status")
+def get_db_status():
+    """Returns total record counts in SQLite persistent database."""
+    try:
+        from app.database import db_manager
+        conn = db_manager.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) as count FROM jv_derived_metrics;")
+        metrics_count = cursor.fetchone()["count"]
+        conn.close()
+
+        return {
+            "datasets_count": db_manager.count_datasets(),
+            "derived_metrics_count": metrics_count,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Database check failed: {str(exc)}")
+
+
+@router.get("/datasets")
+def list_datasets_endpoint(scientific_type: Optional[str] = None):
+    """Lists all canonical datasets currently stored in SQLite DB."""
+    try:
+        from app.database import db_manager
+        datasets = db_manager.list_datasets(scientific_type)
+        return [ds.to_dict() for ds in datasets]
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to list datasets: {str(exc)}")
+
+
+@router.get("/datasets/{dataset_id}")
+def get_dataset_endpoint(dataset_id: str):
+    """Retrieves a single canonical dataset from SQLite DB."""
+    try:
+        from app.database import db_manager
+        ds = db_manager.get_dataset(dataset_id)
+        if not ds:
+            raise HTTPException(status_code=404, detail=f"Dataset {dataset_id} not found")
+        
+        # Include any derived metrics for this dataset
+        conn = db_manager.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM jv_derived_metrics WHERE dataset_id = ?;", (dataset_id,))
+        metrics = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+
+        res = ds.to_dict()
+        res["derived_metrics"] = metrics
+        return res
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve dataset: {str(exc)}")
+
+
+@router.post("/ml/train/random-forest")
+async def train_global_random_forest(
+    material: Optional[str] = None,
+    validation_mode: str = "interpolation",
+    test_workbook: Optional[str] = None,
+    test_size: float = 0.25,
+    random_state: int = 42
+):
+    """
+    Curates a tabular dataset from database, trains RandomForestRegressors for Jsc, Voc, FF, PCE,
+    compares them to mean and linear baselines, and returns performance metrics.
+    """
+    try:
+        from app.services.rf_pv_regressor import build_ml_dataset_from_db, MLRegressorManager
+        
+        df, audit_log = build_ml_dataset_from_db()
+        if df.empty:
+            return {
+                "status": "NO_DATA",
+                "message": "SQLite database is currently empty. Please upload SCAPS Excel datasets first.",
+                "audit": audit_log
+            }
+
+        manager = MLRegressorManager(df)
+        targets = ["j_sc", "v_oc", "ff", "pce"]
+        
+        global _GLOBAL_RF_METRICS, _GLOBAL_RF_PREDICTIONS
+        _GLOBAL_RF_METRICS.clear()
+        _GLOBAL_RF_PREDICTIONS.clear()
+        
+        results = {}
+        for target in targets:
+            metrics_dict = manager.train_and_evaluate(
+                target_name=target,
+                material_filter=material,
+                test_size=test_size,
+                random_state=random_state,
+                validation_mode=validation_mode,
+                test_workbook=test_workbook
+            )
+            results[target] = metrics_dict
+
+        _GLOBAL_RF_METRICS.update(results)
+        _GLOBAL_RF_PREDICTIONS.update(manager.predictions)
+
+        # Generate audit report on disk
+        from pathlib import Path
+        from app.services.rf_pv_regressor import generate_ml_audit_report
+        report_path = Path(__file__).resolve().parents[2] / "v1_ml_dataset_audit.md"
+        generate_ml_audit_report(audit_log, report_path)
+
+        # Find first success target to extract top-level metadata
+        success_target = next((t for t in targets if results[t].get("status") != "INSUFFICIENT_DATA"), None)
+        first_res = results[success_target] if success_target else results[targets[0]]
+
+        return {
+            "status": "SUCCESS" if success_target else "INSUFFICIENT_DATA",
+            "model": "RandomForestRegressor",
+            "validation_mode": validation_mode,
+            "test_workbook": test_workbook,
+            "train_workbooks": first_res.get("train_workbooks", []),
+            "test_workbooks": first_res.get("test_workbooks", []),
+            "is_statistically_meaningful": first_res.get("is_statistically_meaningful", False),
+            "targets": {
+                target: {
+                    "actual": manager.predictions[target]["actuals"] if target in manager.predictions else [],
+                    "predicted": manager.predictions[target]["predicted_rf"] if target in manager.predictions else [],
+                    "metrics": {
+                        "r2": results[target]["random_forest"]["r2"] if "random_forest" in results[target] else float("nan"),
+                        "mae": results[target]["random_forest"]["mae"] if "random_forest" in results[target] else float("nan"),
+                        "rmse": results[target]["random_forest"]["rmse"] if "random_forest" in results[target] else float("nan"),
+                        "n_samples": len(manager.predictions[target]["actuals"]) if target in manager.predictions else 0
+                    },
+                    "validation": results[target]
+                } for target in targets
+            },
+            "metrics": results,
+            "audit_log_summary": {
+                "total_scanned": len(audit_log),
+                "eligible": sum(1 for r in audit_log if r["status"] == "ELIGIBLE"),
+                "excluded": sum(1 for r in audit_log if r["status"] == "EXCLUDED"),
+            }
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Global RF training failed: {str(exc)}")
+
+
+@router.get("/ml/results")
+def get_global_ml_results():
+    """Returns parity plot actual vs predicted curves and comparison baselines."""
+    if not _GLOBAL_RF_METRICS or not _GLOBAL_RF_PREDICTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="No Random Forest models trained yet. Please POST to /api/ml/train/random-forest first."
+        )
+    targets = ["j_sc", "v_oc", "ff", "pce"]
+    first_res = _GLOBAL_RF_METRICS.get(targets[0], {})
+    return {
+        "model": "RandomForestRegressor",
+        "validation_mode": first_res.get("validation_mode", "interpolation"),
+        "test_workbook": first_res.get("test_workbook", None),
+        "train_workbooks": first_res.get("train_workbooks", []),
+        "test_workbooks": first_res.get("test_workbooks", []),
+        "is_statistically_meaningful": first_res.get("is_statistically_meaningful", False),
+        "targets": {
+            t: {
+                "actual": _GLOBAL_RF_PREDICTIONS[t]["actuals"],
+                "predicted": _GLOBAL_RF_PREDICTIONS[t]["predicted_rf"],
+                "metrics": {
+                    "r2": _GLOBAL_RF_METRICS[t]["random_forest"]["r2"] if "random_forest" in _GLOBAL_RF_METRICS[t] else float("nan"),
+                    "mae": _GLOBAL_RF_METRICS[t]["random_forest"]["mae"] if "random_forest" in _GLOBAL_RF_METRICS[t] else float("nan"),
+                    "rmse": _GLOBAL_RF_METRICS[t]["random_forest"]["rmse"] if "random_forest" in _GLOBAL_RF_METRICS[t] else float("nan"),
+                    "n_samples": len(_GLOBAL_RF_PREDICTIONS[t]["actuals"])
+                },
+                "validation": _GLOBAL_RF_METRICS[t]
+            } for t in targets
+        },
+        "metrics": _GLOBAL_RF_METRICS,
+        "predictions": _GLOBAL_RF_PREDICTIONS
+    }

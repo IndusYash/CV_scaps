@@ -189,3 +189,40 @@ export const predictCurveOverlay = async (
   });
   return response.data;
 };
+
+// --- V1 persistent DB & Global ML client API ---
+
+export const fetchDatabaseStatus = async (): Promise<{ datasets_count: number; derived_metrics_count: number }> => {
+  const response = await axios.get(`${API_BASE}/database/status`);
+  return response.data;
+};
+
+export const fetchDatasets = async (scientificType?: string): Promise<any[]> => {
+  const url = scientificType ? `${API_BASE}/datasets?scientific_type=${scientificType}` : `${API_BASE}/datasets`;
+  const response = await axios.get(url);
+  return response.data;
+};
+
+export const trainGlobalRandomForest = async (
+  material?: string,
+  testSize: number = 0.25,
+  randomState: number = 42,
+  validationMode: string = "interpolation",
+  testWorkbook?: string
+): Promise<any> => {
+  const params = new URLSearchParams();
+  if (material) params.append("material", material);
+  params.append("test_size", testSize.toString());
+  params.append("random_state", randomState.toString());
+  params.append("validation_mode", validationMode);
+  if (testWorkbook) params.append("test_workbook", testWorkbook);
+
+  const response = await axios.post(`${API_BASE}/ml/train/random-forest?${params.toString()}`);
+  return response.data;
+};
+
+export const fetchGlobalMLResults = async (): Promise<any> => {
+  const response = await axios.get(`${API_BASE}/ml/results`);
+  return response.data;
+};
+

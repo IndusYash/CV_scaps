@@ -155,18 +155,29 @@ class IRGeneratorEngine:
         if first_row_numeric == 0 and len(cols) > 1:
             x_col_idx = cols[1]
 
+        x_detected = False
+
         for idx, col in enumerate(cols):
             h_text = header_texts[idx].lower()
             if any(k in h_text for k in ["lambda", "wavelength", "l(nm)", "w(nm)"]):
                 x_col_idx = col
                 x_name = "Wavelength"
                 x_unit = "nm"
+                x_detected = True
                 break
             elif any(k in h_text for k in ["v(v)", "voltage"]):
                 x_col_idx = col
                 x_name = "Voltage"
                 x_unit = "V"
+                x_detected = True
                 break
+
+        if not x_detected:
+            h_raw = header_texts[cols.index(x_col_idx)]
+            p_name, p_unit = self._identify_param_name(h_raw)
+            if p_name:
+                x_name = p_name
+                x_unit = "nm" if "nm" in h_raw.lower() else p_unit
 
         # Step 4: Structural Curve Row Extraction
         data_start_row = header_row_idx + 1
@@ -500,12 +511,45 @@ class IRGeneratorEngine:
             target_columns = [c for c in cols if c != x_col_idx]
             col_labels = [header_texts[cols.index(c)] if c in cols else f"Col_{c}" for c in target_columns]
 
+        # Determine block-wide target identity context if confidently known
+        block_target = None
+        block_unit = None
+        
+        # Scan header texts and row 0 cell values for scientific target keywords
+        all_block_texts = []
+        for col in cols:
+            h_text = header_texts[cols.index(col)] if col in cols else ""
+            all_block_texts.append(h_text)
+            cell_0 = sheet.get_cell(0, col)
+            if cell_0 and cell_0.formatted_value:
+                all_block_texts.append(cell_0.formatted_value)
+                
+        block_text_combined = " ".join(all_block_texts).lower()
+        
+        if "detectivity" in block_text_combined or "jones" in block_text_combined or "d*" in block_text_combined:
+            block_target = "Detectivity"
+            block_unit = "Jones"
+        elif "responsivity" in block_text_combined or "a/w" in block_text_combined or "r (" in block_text_combined or "r(" in block_text_combined:
+            block_target = "Responsivity"
+            block_unit = "A/W"
+        elif "alpha" in block_text_combined or "1/cm" in block_text_combined or "cm^-1" in block_text_combined or "absorption" in block_text_combined:
+            block_target = "Absorption"
+            block_unit = "1/cm"
+        elif "qe" in block_text_combined or "quantum" in block_text_combined:
+            block_target = "QE"
+            block_unit = "%"
+        elif any(k in block_text_combined for k in ["jtot", "current", "j(", "j_", "jsc", "voc", "ff", "pce", "eta"]):
+            block_target = "Current"
+            block_unit = "mA/cm^2"
+
         col_info_list: List[Tuple[int, str, str, str]] = []
         for idx, col in enumerate(target_columns):
             lbl = col_labels[idx]
             l_lower = lbl.lower()
             h_lower = header_texts[cols.index(col)].lower() if col in cols else ""
 
+            # Check for explicit keywords first (Genuine Explicit overrides)
+            t_name, t_unit = None, None
             if "energy" in h_lower or "ev" in h_lower or "energy" in l_lower or "ev" in l_lower:
                 t_name, t_unit = "Photon_Energy", "eV"
             elif "detectivity" in h_lower or "jones" in h_lower or "d*" in h_lower or "detectivity" in l_lower or "jones" in l_lower or "d*" in l_lower:
@@ -516,8 +560,16 @@ class IRGeneratorEngine:
                 t_name, t_unit = "Absorption", "1/cm"
             elif "qe" in h_lower or "quantum" in h_lower or "qe" in l_lower or "quantum" in l_lower:
                 t_name, t_unit = "QE", "%"
-            else:
-                t_name, t_unit = ("QE", "%") if x_name == "Wavelength" else ("Current", "mA/cm^2")
+            elif any(k in h_lower or k in l_lower for k in ["jtot", "current", "j(", "j_", "jsc"]):
+                t_name, t_unit = "Current", "mA/cm^2"
+
+            # If no explicit keyword target, inherit parent block identity if confidently known
+            if not t_name:
+                if block_target:
+                    t_name, t_unit = block_target, block_unit
+                else:
+                    # Generic legacy fallback based on axis
+                    t_name, t_unit = ("QE", "%") if x_name == "Wavelength" else ("Current", "mA/cm^2")
 
             col_info_list.append((col, lbl, t_name, t_unit))
 

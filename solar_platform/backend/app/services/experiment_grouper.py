@@ -21,6 +21,18 @@ class ScientificExperiment:
     blocks: List[DataBlockAudit] = field(default_factory=list)
     combined_dataframe: pd.DataFrame = field(default_factory=pd.DataFrame)
 
+    @property
+    def semantic_type(self) -> str:
+        if self.target_name == "Current" and self.axis_name == "Voltage":
+            return "JV"
+        elif self.target_name == "Current" and self.axis_name not in ["Voltage", "Wavelength"]:
+            return "SCALAR_SWEEP"
+        elif self.target_name == "QE":
+            return "QE"
+        elif self.target_name == "Responsivity":
+            return "RESPONSIVITY"
+        return self.target_name
+
 
 class ExperimentGrouperEngine:
     def group_sheet_blocks_into_experiments(

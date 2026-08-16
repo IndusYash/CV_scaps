@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layers, RefreshCw, Cpu, Award } from 'lucide-react';
+import { Layers, RefreshCw, Cpu, Award, Database, ShieldCheck } from 'lucide-react';
 import { FileUploader } from './components/FileUploader';
 import { TrainingControls } from './components/TrainingControls';
 import { MetricsPanel } from './components/MetricsPanel';
@@ -8,15 +8,26 @@ import { PointPredictor } from './components/PointPredictor';
 import { ComparisonOverlay } from './components/ComparisonOverlay';
 import { PhysicsPanel } from './components/PhysicsPanel';
 import { WorkbookSummary } from './components/WorkbookSummary';
+import { ParityPlots } from './components/ParityPlots';
 import { Footer } from './components/Footer';
-import { trainModels, fetchCurvesData, UploadResponse, TrainResponse, ExperimentPayload } from './api/client';
+import {
+  trainModels,
+  fetchCurvesData,
+  UploadResponse,
+  TrainResponse,
+  ExperimentPayload,
+  fetchDatabaseStatus,
+  trainGlobalRandomForest,
+  fetchGlobalMLResults,
+  fetchDatasets
+} from './api/client';
 
 const SESSION_KEY = 'SOLAR_SIMULATION_SESSION_V2';
 
 export const App: React.FC = () => {
   const [uploadData, setUploadData] = useState<UploadResponse | null>(null);
   const [activeSheet, setActiveSheet] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'sheet' | 'summary'>('sheet');
+  const [viewMode, setViewMode] = useState<'sheet' | 'summary' | 'global_ml'>('sheet');
 
   // Hyperparameters
   const [testSize, setTestSize] = useState<number>(0.2);
@@ -29,6 +40,72 @@ export const App: React.FC = () => {
   const [experimentsData, setExperimentsData] = useState<Record<string, ExperimentPayload[]>>({});
   const [loadingTrain, setLoadingTrain] = useState<boolean>(false);
   const [loadingTrainAll, setLoadingTrainAll] = useState<boolean>(false);
+
+  // SQLite DB and Global V1 ML state
+  const [dbStatus, setDbStatus] = useState<{ datasets_count: number; derived_metrics_count: number } | null>(null);
+  const [globalMLResults, setGlobalMLResults] = useState<any | null>(null);
+  const [loadingGlobalTrain, setLoadingGlobalTrain] = useState<boolean>(false);
+
+  // Validation mode states
+  const [validationMode, setValidationMode] = useState<string>('interpolation');
+  const [testWorkbook, setTestWorkbook] = useState<string>('');
+  const [availableWorkbooks, setAvailableWorkbooks] = useState<string[]>([]);
+
+  // Poll database status on load and after uploading
+  const refreshDbStatus = async () => {
+    try {
+      const status = await fetchDatabaseStatus();
+      setDbStatus(status);
+    } catch (err) {
+      console.error('Failed to fetch DB status', err);
+    }
+  };
+
+  const loadWorkbooks = async () => {
+    try {
+      const datasets = await fetchDatasets();
+      const wbs = Array.from(new Set(datasets.map((d: any) => d.workbook_name))).filter(Boolean) as string[];
+      setAvailableWorkbooks(wbs);
+      if (wbs.length > 0 && !testWorkbook) {
+        setTestWorkbook(wbs[0]);
+      }
+    } catch (err) {
+      console.error('Failed to load workbooks list', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshDbStatus();
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === 'global_ml') {
+      loadWorkbooks();
+    }
+  }, [viewMode]);
+
+  const handleGlobalTrain = async () => {
+    setLoadingGlobalTrain(true);
+    try {
+      const trainRes = await trainGlobalRandomForest(
+        undefined,
+        testSize,
+        randomState,
+        validationMode,
+        validationMode === 'unseen_workbook' ? testWorkbook : undefined
+      );
+      if (trainRes.status === 'SUCCESS' || trainRes.status === 'INSUFFICIENT_DATA') {
+        const results = await fetchGlobalMLResults();
+        setGlobalMLResults(results);
+        await refreshDbStatus();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Global training failed: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoadingGlobalTrain(false);
+    }
+  };
 
   // SESSION RESTORATION ON REFRESH
   useEffect(() => {
@@ -77,6 +154,7 @@ export const App: React.FC = () => {
     if (data.sheets && data.sheets.length > 0) {
       setActiveSheet(data.sheets[0].sheet_name);
     }
+    refreshDbStatus();
   };
 
   const handleClearSession = () => {
@@ -86,6 +164,7 @@ export const App: React.FC = () => {
     setTrainingResults({});
     setCurvesData({});
     setExperimentsData({});
+    setGlobalMLResults(null);
     setViewMode('sheet');
   };
 
@@ -241,13 +320,13 @@ export const App: React.FC = () => {
                 <span>{loadingTrainAll ? 'Training All Sheets...' : 'Train All Worksheets'}</span>
               </button>
 
-              <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem', backgroundColor: 'var(--color-bg)', padding: '0.25rem', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+              <div style={{ display: 'flex', backgroundColor: 'var(--color-bg)', padding: '0.25rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid var(--color-border)' }}>
                 <button
                   onClick={() => setViewMode('sheet')}
                   style={{
                     flex: 1,
                     padding: '0.45rem',
-                    fontSize: '0.8rem',
+                    fontSize: '0.74rem',
                     fontWeight: 700,
                     borderRadius: '6px',
                     border: 'none',
@@ -257,14 +336,14 @@ export const App: React.FC = () => {
                     boxShadow: viewMode === 'sheet' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
                   }}
                 >
-                  Worksheets ({uploadData.sheets.length})
+                  Worksheets
                 </button>
                 <button
                   onClick={() => setViewMode('summary')}
                   style={{
                     flex: 1,
                     padding: '0.45rem',
-                    fontSize: '0.8rem',
+                    fontSize: '0.74rem',
                     fontWeight: 700,
                     borderRadius: '6px',
                     border: 'none',
@@ -275,6 +354,23 @@ export const App: React.FC = () => {
                   }}
                 >
                   Summary
+                </button>
+                <button
+                  onClick={() => setViewMode('global_ml')}
+                  style={{
+                    flex: 1,
+                    padding: '0.45rem',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: viewMode === 'global_ml' ? '#FFFFFF' : 'transparent',
+                    color: viewMode === 'global_ml' ? 'var(--color-success)' : 'var(--color-secondary)',
+                    cursor: 'pointer',
+                    boxShadow: viewMode === 'global_ml' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
+                  }}
+                >
+                  V1 ML Reg.
                 </button>
               </div>
 
@@ -324,6 +420,26 @@ export const App: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* SQLite DB Status Widget */}
+              {dbStatus && (
+                <div className="ui-card animate-fade-in" style={{ marginTop: 'auto', padding: '1rem', border: '1px solid var(--color-border)', backgroundColor: 'var(--color-accent-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                    <Database size={15} color="var(--color-accent)" />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-accent)' }}>SQLite DB Persistence</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.74rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Persisted datasets:</span>
+                      <strong>{dbStatus.datasets_count}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Extracted JV curves:</span>
+                      <strong>{dbStatus.derived_metrics_count}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
             </aside>
 
             {/* Content Area */}
@@ -339,6 +455,103 @@ export const App: React.FC = () => {
                   onTrainAll={handleTrainAll}
                   loadingTrainAll={loadingTrainAll}
                 />
+              ) : viewMode === 'global_ml' ? (
+                <div>
+                  <div style={{ marginBottom: '2rem' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-success)', marginBottom: '0.2rem' }}>
+                      SQLite Persistent Database
+                    </div>
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--color-primary)', margin: 0 }}>
+                      V1 Production ML: Classical RandomForest Regressors
+                    </h2>
+                    <p style={{ color: 'var(--color-secondary)', fontSize: '0.92rem', marginTop: '0.4rem', maxWidth: '800px' }}>
+                      Trains RandomForest models directly from extracted JV parameters stored in SQLite. Strictly uses experiment group-level split isolation to guarantee leak-free validation metrics compared side-by-side to Mean and Linear baseline models.
+                    </p>
+                  </div>
+
+                  <div className="ui-card" style={{ padding: '1.5rem', marginBottom: '2rem' }}>
+                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--color-primary)' }}>Classical ML Training Controls</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'center' }}>
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary)', textTransform: 'uppercase' }}>Validation Mode</label>
+                        <select 
+                          value={validationMode} 
+                          onChange={(e) => setValidationMode(e.target.value)}
+                          style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)', marginTop: '0.25rem' }}
+                        >
+                          <option value="interpolation">Within-Dataset Interpolation</option>
+                          <option value="unseen_workbook">True Unseen Workbook</option>
+                        </select>
+                      </div>
+
+                      {validationMode === 'unseen_workbook' ? (
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary)', textTransform: 'uppercase' }}>Test Held-Out Workbook</label>
+                          <select 
+                            value={testWorkbook} 
+                            onChange={(e) => setTestWorkbook(e.target.value)}
+                            style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)', marginTop: '0.25rem' }}
+                          >
+                            {availableWorkbooks.map(wb => (
+                              <option key={wb} value={wb}>{wb}</option>
+                            ))}
+                            {availableWorkbooks.length === 0 && (
+                              <option value="">No workbooks found</option>
+                            )}
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary)', textTransform: 'uppercase' }}>Test Split Ratio</label>
+                          <select 
+                            value={testSize} 
+                            onChange={(e) => setTestSize(parseFloat(e.target.value))}
+                            style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)', marginTop: '0.25rem' }}
+                          >
+                            <option value="0.2">20% test split</option>
+                            <option value="0.25">25% test split</option>
+                            <option value="0.33">33% test split</option>
+                          </select>
+                        </div>
+                      )}
+
+                      <div>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary)', textTransform: 'uppercase' }}>Number of Estimators</label>
+                        <input 
+                          type="number" 
+                          value={nEstimators} 
+                          onChange={(e) => setNEstimators(parseInt(e.target.value))}
+                          style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)', marginTop: '0.25rem' }} 
+                        />
+                      </div>
+                      <button
+                        onClick={handleGlobalTrain}
+                        disabled={loadingGlobalTrain || !dbStatus || dbStatus.derived_metrics_count === 0}
+                        style={{
+                          backgroundColor: 'var(--color-success)',
+                          color: '#FFFFFF',
+                          padding: '0.75rem 1.5rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem',
+                          boxShadow: '0 2px 4px rgba(34, 197, 94, 0.2)',
+                          height: '42px',
+                          alignSelf: 'end'
+                        }}
+                      >
+                        {loadingGlobalTrain ? 'Training RandomForest Models...' : 'Train V1 RandomForest Model'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <ParityPlots mlResults={globalMLResults} />
+                </div>
               ) : (
                 currentSheetSummary && (
                   <div>
