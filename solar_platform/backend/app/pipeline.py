@@ -67,7 +67,11 @@ class UnifiedParserPipeline:
                 total_blocks += 1
 
                 # Generate IR
-                ir = self.ir_engine.generate_ir_for_block(doc_sheet, block_audit)
+                ir = self.ir_engine.generate_ir_for_block(
+                doc_sheet,
+                block_audit,
+                source_filename=filename,
+                )
                 block_audit.intermediate_representation = ir
 
                 # Semantic Tagging
