@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 import pandas as pd
@@ -85,6 +85,20 @@ async def upload_file(file: UploadFile = File(...)):
         await run_in_threadpool(
             db_manager.parse_and_persist_workbook_bytes, file.filename, contents
         )
+
+        # Additive: store the corrected summary-sweep rows for the opt-in
+        # Layer B data source (data_source="corrected"). Writes only to its own
+        # table and must never be able to affect the upload itself.
+        try:
+            from app.services import corrected_pv_dataset
+            await run_in_threadpool(
+                corrected_pv_dataset.persist_corrected_rows, file.filename, audit_result
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            import logging
+            logging.getLogger(__name__).warning(
+                "Corrected PV rows were not persisted for %s: %s", file.filename, exc
+            )
 
         # Fallback raw pandas sheets for legacy compatibility
         if filename_lower.endswith((".xlsx", ".xls")):
@@ -492,7 +506,8 @@ async def train_global_random_forest(
     validation_mode: str = "interpolation",
     test_workbook: Optional[str] = None,
     test_size: float = 0.25,
-    random_state: int = 42
+    random_state: int = 42,
+    data_source: str = "db"
 ):
     """
     Curates a tabular dataset from database, trains RandomForestRegressors for Jsc, Voc, FF, PCE,
@@ -501,7 +516,11 @@ async def train_global_random_forest(
     try:
         from app.services.rf_pv_regressor import build_ml_dataset_from_db, MLRegressorManager
         
-        df, audit_log = build_ml_dataset_from_db()
+        if data_source == "corrected":
+            from app.services.corrected_pv_dataset import build_ml_dataset_from_corrected
+            df, audit_log = build_ml_dataset_from_corrected()
+        else:
+            df, audit_log = build_ml_dataset_from_db()
         if df.empty:
             return {
                 "status": "NO_DATA",
@@ -534,7 +553,8 @@ async def train_global_random_forest(
         # Generate audit report on disk
         from pathlib import Path
         from app.services.rf_pv_regressor import generate_ml_audit_report
-        report_path = Path(__file__).resolve().parents[2] / "v1_ml_dataset_audit.md"
+        report_name = "v1_ml_dataset_audit_corrected.md" if data_source == "corrected" else "v1_ml_dataset_audit.md"
+        report_path = Path(__file__).resolve().parents[2] / report_name
         generate_ml_audit_report(audit_log, report_path)
 
         # Find first success target to extract top-level metadata
@@ -545,6 +565,7 @@ async def train_global_random_forest(
             "status": "SUCCESS" if success_target else "INSUFFICIENT_DATA",
             "model": "RandomForestRegressor",
             "validation_mode": validation_mode,
+            "data_source": data_source,
             "test_workbook": test_workbook,
             "train_workbooks": first_res.get("train_workbooks", []),
             "test_workbooks": first_res.get("test_workbooks", []),
@@ -606,3 +627,50 @@ def get_global_ml_results():
         "metrics": _GLOBAL_RF_METRICS,
         "predictions": _GLOBAL_RF_PREDICTIONS
     }
+
+
+# --- Corrected-pipeline data management (used by the V1 ML Reg. tab) ---
+
+def _reset_global_rf_cache() -> None:
+    """Drops the last training result so the page cannot show numbers for workbooks that were removed."""
+    _GLOBAL_RF_METRICS.clear()
+    _GLOBAL_RF_PREDICTIONS.clear()
+
+
+@router.get("/ml/corrected/workbooks")
+def list_corrected_workbooks():
+    """Lists the workbooks stored for the corrected-pipeline data source."""
+    try:
+        from app.services import corrected_pv_dataset
+        return {"workbooks": corrected_pv_dataset.list_stored_workbooks()}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to list corrected workbooks: {str(exc)}")
+
+
+@router.delete("/ml/corrected/workbook")
+def delete_corrected_workbook(name: str):
+    """Removes one workbook from the corrected-pipeline data source (re-upload to restore it)."""
+    try:
+        from app.services import corrected_pv_dataset
+        known = {w["workbook_name"] for w in corrected_pv_dataset.list_stored_workbooks()}
+        if name not in known:
+            raise HTTPException(status_code=404, detail=f"Workbook '{name}' is not stored in the corrected data.")
+        removed = corrected_pv_dataset.delete_stored_workbooks([name])
+        _reset_global_rf_cache()
+        return {"status": "OK", "removed_rows": removed, "workbook_name": name}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to remove workbook: {str(exc)}")
+
+
+@router.delete("/ml/corrected/workbooks")
+def clear_corrected_workbooks():
+    """Removes every workbook from the corrected-pipeline data source (re-upload to restore)."""
+    try:
+        from app.services import corrected_pv_dataset
+        removed = corrected_pv_dataset.delete_stored_workbooks(None)
+        _reset_global_rf_cache()
+        return {"status": "OK", "removed_rows": removed}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to clear corrected data: {str(exc)}")

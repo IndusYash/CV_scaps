@@ -9,6 +9,7 @@ import { ComparisonOverlay } from './components/ComparisonOverlay';
 import { PhysicsPanel } from './components/PhysicsPanel';
 import { WorkbookSummary } from './components/WorkbookSummary';
 import { ParityPlots } from './components/ParityPlots';
+import { CorrectedDataManager } from './components/CorrectedDataManager';
 import { Footer } from './components/Footer';
 import {
   trainModels,
@@ -19,7 +20,11 @@ import {
   fetchDatabaseStatus,
   trainGlobalRandomForest,
   fetchGlobalMLResults,
-  fetchDatasets
+  fetchDatasets,
+  fetchCorrectedWorkbooks,
+  deleteCorrectedWorkbook,
+  clearCorrectedWorkbooks,
+  CorrectedWorkbookInfo
 } from './api/client';
 
 const SESSION_KEY = 'SOLAR_SIMULATION_SESSION_V2';
@@ -48,8 +53,11 @@ export const App: React.FC = () => {
 
   // Validation mode states
   const [validationMode, setValidationMode] = useState<string>('interpolation');
+  const [dataSource, setDataSource] = useState<string>('db');
   const [testWorkbook, setTestWorkbook] = useState<string>('');
   const [availableWorkbooks, setAvailableWorkbooks] = useState<string[]>([]);
+  const [correctedWorkbooks, setCorrectedWorkbooks] = useState<CorrectedWorkbookInfo[]>([]);
+  const [correctedBusy, setCorrectedBusy] = useState<boolean>(false);
 
   // Poll database status on load and after uploading
   const refreshDbStatus = async () => {
@@ -84,6 +92,54 @@ export const App: React.FC = () => {
     }
   }, [viewMode]);
 
+  const loadCorrectedWorkbooks = async () => {
+    try {
+      const wbs = await fetchCorrectedWorkbooks();
+      setCorrectedWorkbooks(wbs);
+      // Keep the held-out workbook valid for the corrected source.
+      const names = wbs.map((w) => w.workbook_name);
+      if (names.length > 0 && !names.includes(testWorkbook)) {
+        setTestWorkbook(names[0]);
+      }
+    } catch (err) {
+      console.error('Failed to load corrected workbooks', err);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'global_ml' && dataSource === 'corrected') {
+      loadCorrectedWorkbooks();
+    }
+  }, [viewMode, dataSource, uploadData]);
+
+  const handleRemoveCorrected = async (name: string) => {
+    if (!window.confirm(`Remove "${name}" from the corrected training data?\n\nYou can add it back by uploading it again.`)) return;
+    setCorrectedBusy(true);
+    try {
+      await deleteCorrectedWorkbook(name);
+      setGlobalMLResults(null);
+      await loadCorrectedWorkbooks();
+    } catch (err: any) {
+      alert('Could not remove the workbook: ' + (err?.response?.data?.detail || err.message));
+    } finally {
+      setCorrectedBusy(false);
+    }
+  };
+
+  const handleClearCorrected = async () => {
+    if (!window.confirm('Remove ALL workbooks from the corrected training data?\n\nYou can add them back by uploading them again.')) return;
+    setCorrectedBusy(true);
+    try {
+      await clearCorrectedWorkbooks();
+      setGlobalMLResults(null);
+      await loadCorrectedWorkbooks();
+    } catch (err: any) {
+      alert('Could not clear the data: ' + (err?.response?.data?.detail || err.message));
+    } finally {
+      setCorrectedBusy(false);
+    }
+  };
+
   const handleGlobalTrain = async () => {
     setLoadingGlobalTrain(true);
     try {
@@ -92,12 +148,21 @@ export const App: React.FC = () => {
         testSize,
         randomState,
         validationMode,
-        validationMode === 'unseen_workbook' ? testWorkbook : undefined
+        validationMode === 'unseen_workbook' ? testWorkbook : undefined,
+        dataSource
       );
       if (trainRes.status === 'SUCCESS' || trainRes.status === 'INSUFFICIENT_DATA') {
         const results = await fetchGlobalMLResults();
-        setGlobalMLResults(results);
+        // The results endpoint does not return a status field, but the results panel
+        // only draws when status === 'SUCCESS', so carry the training status across.
+        setGlobalMLResults({ ...results, status: trainRes.status });
         await refreshDbStatus();
+      } else {
+        // Previously silent: e.g. NO_DATA when the selected source has no rows yet.
+        const hint = dataSource === 'corrected'
+          ? ' The corrected data table is filled when a workbook is uploaded, so re-upload your workbooks and try again.'
+          : '';
+        alert((trainRes.message || ('Training did not run (status: ' + trainRes.status + ').')) + hint);
       }
     } catch (err: any) {
       console.error(err);
@@ -484,6 +549,23 @@ export const App: React.FC = () => {
                         </select>
                       </div>
 
+                      <div style={{ position: 'relative' }}>
+                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary)', textTransform: 'uppercase' }}>Training Data Source</label>
+                        <select 
+                          value={dataSource} 
+                          onChange={(e) => setDataSource(e.target.value)}
+                          style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)', marginTop: '0.25rem' }}
+                        >
+                          <option value="db">Legacy database (default)</option>
+                          <option value="corrected">Corrected pipeline</option>
+                        </select>
+                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, fontSize: '0.72rem', color: 'var(--color-secondary)', marginTop: '0.3rem' }}>
+                          {dataSource === 'corrected'
+                            ? 'PCE, Voc, Jsc and FF from the corrected summary sweeps.'
+                            : 'JV-derived rows stored in the database.'}
+                        </div>
+                      </div>
+
                       {validationMode === 'unseen_workbook' ? (
                         <div>
                           <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-secondary)', textTransform: 'uppercase' }}>Test Held-Out Workbook</label>
@@ -492,10 +574,10 @@ export const App: React.FC = () => {
                             onChange={(e) => setTestWorkbook(e.target.value)}
                             style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '1px solid var(--color-border)', marginTop: '0.25rem' }}
                           >
-                            {availableWorkbooks.map(wb => (
+                            {(dataSource === 'corrected' ? correctedWorkbooks.map(w => w.workbook_name) : availableWorkbooks).map(wb => (
                               <option key={wb} value={wb}>{wb}</option>
                             ))}
-                            {availableWorkbooks.length === 0 && (
+                            {(dataSource === 'corrected' ? correctedWorkbooks.length : availableWorkbooks.length) === 0 && (
                               <option value="">No workbooks found</option>
                             )}
                           </select>
@@ -549,6 +631,15 @@ export const App: React.FC = () => {
                       </button>
                     </div>
                   </div>
+
+                  {dataSource === 'corrected' && (
+                    <CorrectedDataManager
+                      workbooks={correctedWorkbooks}
+                      busy={correctedBusy}
+                      onRemove={handleRemoveCorrected}
+                      onClearAll={handleClearCorrected}
+                    />
+                  )}
 
                   <ParityPlots mlResults={globalMLResults} />
                 </div>
