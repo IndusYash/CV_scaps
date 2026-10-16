@@ -5,11 +5,80 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, LeaveOneOut
 
 from app.models.schemas import MetricPair
 from app.services.experiment_grouper import ExperimentGrouperEngine, ScientificExperiment
 from app.services.preprocessor import preprocess_parametric_sheet, preprocess_single_curve_sheet
+
+# Below this many rows, a single random train/test holdout split is not
+# statistically meaningful: an 80/20 split can leave as few as 1 test
+# point, for which R^2 is undefined (sklearn returns NaN), or 2 points,
+# where a single unlucky held-out value can swing R^2 to wildly negative
+# numbers that say nothing real about the model. Experiments with fewer
+# rows than this use leave-one-out cross-validation instead (see
+# _fit_and_evaluate below); experiments at or above it keep the existing
+# random-split behavior unchanged.
+_SMALL_SAMPLE_THRESHOLD = 20
+
+
+def _fit_and_evaluate(
+    X: pd.DataFrame,
+    y: pd.Series,
+    n_estimators: int,
+    random_state: int,
+    test_size: float,
+) -> Tuple[RandomForestRegressor, float, float]:
+    """Fits the production RandomForestRegressor on all available data and
+    returns it alongside an R^2/MAE pair evaluated the way appropriate for
+    the sample size.
+
+    - len(X) < _SMALL_SAMPLE_THRESHOLD: leave-one-out cross-validation.
+      Each row is held out once, predicted by a model trained on every
+      other row, and R^2/MAE are computed over the full set of N
+      out-of-fold predictions. This uses every point as a held-out test
+      case exactly once, rather than gambling the whole evaluation on a
+      single random 1-2 point split.
+    - len(X) >= _SMALL_SAMPLE_THRESHOLD: unchanged -- a single random
+      train/test split, exactly as before, since there is enough data
+      for that split to be meaningful (this is the curve-data case,
+      already verified to produce good R^2 scores).
+
+    The returned model is always fit on the complete dataset, since for
+    actual prediction use there is no reason to withhold data from the
+    deployed model once evaluation is done.
+    """
+    n = len(X)
+
+    if n < _SMALL_SAMPLE_THRESHOLD:
+        oof_pred = np.empty(n, dtype=float)
+        oof_true = y.to_numpy(dtype=float)
+        loo = LeaveOneOut()
+        for train_idx, test_idx in loo.split(X):
+            fold_model = RandomForestRegressor(
+                n_estimators=n_estimators, random_state=random_state
+            )
+            fold_model.fit(X.iloc[train_idx], y.iloc[train_idx])
+            oof_pred[test_idx[0]] = fold_model.predict(X.iloc[test_idx])[0]
+
+        r2 = float(r2_score(oof_true, oof_pred))
+        mae = float(mean_absolute_error(oof_true, oof_pred))
+
+        final_model = RandomForestRegressor(
+            n_estimators=n_estimators, random_state=random_state
+        )
+        final_model.fit(X, y)
+        return final_model, r2, mae
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state
+    )
+    model = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    r2 = float(r2_score(y_test, y_pred))
+    mae = float(mean_absolute_error(y_test, y_pred))
+    return model, r2, mae
 
 
 class TrainedSheetSession:
@@ -101,16 +170,9 @@ def train_sheet_models(
             if len(X) < 5:
                 continue
 
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=random_state
+            model, r2, mae = _fit_and_evaluate(
+                X, y, n_estimators, random_state, test_size
             )
-
-            model = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state)
-            model.fit(X_train, y_train)
-
-            y_pred = model.predict(X_test)
-            r2 = float(r2_score(y_test, y_pred))
-            mae = float(mean_absolute_error(y_test, y_pred))
 
             exp_key = exp.experiment_id
             models = {exp_key: model}
@@ -154,16 +216,12 @@ def train_sheet_models(
             X = df[feature_cols]
             y = df[target_col]
 
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=random_state
+            if len(X) < 5:
+                continue
+
+            model, r2, mae = _fit_and_evaluate(
+                X, y, n_estimators, random_state, test_size
             )
-
-            model = RandomForestRegressor(n_estimators=n_estimators, random_state=random_state)
-            model.fit(X_train, y_train)
-
-            y_pred = model.predict(X_test)
-            r2 = float(r2_score(y_test, y_pred))
-            mae = float(mean_absolute_error(y_test, y_pred))
 
             models = {key: model}
             metrics = {key: MetricPair(r2=r2, mae=mae)}

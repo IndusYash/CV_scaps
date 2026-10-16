@@ -208,7 +208,8 @@ export const trainGlobalRandomForest = async (
   testSize: number = 0.25,
   randomState: number = 42,
   validationMode: string = "interpolation",
-  testWorkbook?: string
+  testWorkbook?: string,
+  dataSource: string = "db"
 ): Promise<any> => {
   const params = new URLSearchParams();
   if (material) params.append("material", material);
@@ -216,6 +217,8 @@ export const trainGlobalRandomForest = async (
   params.append("random_state", randomState.toString());
   params.append("validation_mode", validationMode);
   if (testWorkbook) params.append("test_workbook", testWorkbook);
+  // Only sent when the non-default source is chosen, so the default request is unchanged.
+  if (dataSource !== "db") params.append("data_source", dataSource);
 
   const response = await axios.post(`${API_BASE}/ml/train/random-forest?${params.toString()}`);
   return response.data;
@@ -226,3 +229,23 @@ export const fetchGlobalMLResults = async (): Promise<any> => {
   return response.data;
 };
 
+export interface CorrectedWorkbookInfo {
+  workbook_name: string;
+  eligible_rows: number;
+  excluded_rows: number;
+}
+
+export const fetchCorrectedWorkbooks = async (): Promise<CorrectedWorkbookInfo[]> => {
+  const response = await axios.get(`${API_BASE}/ml/corrected/workbooks`);
+  return response.data.workbooks;
+};
+
+export const deleteCorrectedWorkbook = async (name: string): Promise<any> => {
+  const response = await axios.delete(`${API_BASE}/ml/corrected/workbook`, { params: { name } });
+  return response.data;
+};
+
+export const clearCorrectedWorkbooks = async (): Promise<any> => {
+  const response = await axios.delete(`${API_BASE}/ml/corrected/workbooks`);
+  return response.data;
+};
